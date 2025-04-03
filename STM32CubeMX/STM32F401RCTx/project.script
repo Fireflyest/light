@@ -1,0 +1,5 @@
+load STM32F401RCTx
+project name STM32CubeMX
+project toolchain "MDK-ARM V5"
+project path "E:\Project\stm32\light\STM32CubeMX\STM32F401RCTx"
+SetCopyLibrary "copy only"

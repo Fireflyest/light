@@ -1,0 +1,92 @@
+# A project translates into one executable or library.
+project:
+
+  groups:
+    - group: STM32F4xx StdPeriph Driver Include Files
+      files:
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/misc.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_adc.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_can.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_crc.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_dac.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_dbgmcu.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_dcmi.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_dma.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_exti.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_flash.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_gpio.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_i2c.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_iwdg.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_pwr.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_rcc.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_rng.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_rtc.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_sdio.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_spi.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_syscfg.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_tim.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_usart.h
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_wwdg.h
+    - group: System Files
+      files:
+        - file: ./User/stm32f4xx_it.h
+        - file: ./User/stm32f4xx_it.c
+        - file: ./User/stm32f4xx_conf.h
+        - file: ./RTE/Device/STM32F401RCTx/stm32f4xx.h
+        - file: ./RTE/Device/STM32F401RCTx/system_stm32f4xx.h
+        - file: ./RTE/Device/STM32F401RCTx/system_stm32f4xx.c
+        - file: ./RTE/Device/STM32F401RCTx/startup_stm32f401xx.s
+    - group: Middlewares Files
+      files:
+        - file: ./Middlewares/delay/delay.h
+        - file: ./Middlewares/delay/delay.c
+        - file: ./Middlewares/gpio/gpio.h
+        - file: ./Middlewares/gpio/gpio.c
+        - file: ./Middlewares/key/key.h
+        - file: ./Middlewares/key/key.c
+        - file: ./Middlewares/oled130/bmp.h
+        - file: ./Middlewares/oled130/oledfont.h
+        - file: ./Middlewares/oled130/oled.h
+        - file: ./Middlewares/oled130/oled.c
+    - group: STM32F4xx StdPeriph Driver Source Files
+      files:
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/misc.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_adc.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_can.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_crc.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dac.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dbgmcu.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dcmi.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dma.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_exti.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_flash.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_gpio.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_i2c.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_iwdg.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_pwr.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_rcc.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_rng.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_rtc.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_sdio.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_spi.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_syscfg.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_tim.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_usart.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_wwdg.c 
+    - group: User Files
+      files:
+        - file: ./User/main.h
+        - file: ./User/main.c
+
+  # List components to use for your application.
+  # A software component is a re-usable unit that may be configurable.
+  components:
+    - component: ARM::CMSIS:CORE
+
+  # List executable file formats to be generated.
+  output:
+    type:
+      - elf
+    #  - hex
+  packs:
+    - pack: Keil::STM32F4xx_DFP
