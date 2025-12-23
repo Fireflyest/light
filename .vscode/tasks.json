@@ -73,18 +73,11 @@
                 }
             },
             "args": [
-                "gdbserver",
+                "reset",
                 "--probe",
                 "stlink:",
-                "--connect",
-                "attach",
-                "--persist",
-                "--reset-run",
                 "--cbuild-run",
-                "${command:cmsis-csolution.getCbuildRunFile}",
-                "--quiet",
-                "--log",
-                "*.cbuild_run,*server=info"
+                "${command:cmsis-csolution.getCbuildRunFile}"
             ],
             "problemMatcher": []
         },
