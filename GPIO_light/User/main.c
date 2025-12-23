@@ -35,8 +35,8 @@ int main() {
     I2C_Configuration();  // I2C 初始化函数
 
     // 初始化OLED
-    OLEDConfiguration();
-    OLED_Display_Status(Display_ON);
+    // OLEDConfiguration();
+    // OLED_Display_Status(Display_ON);
 
     blink(50, 3);
 
@@ -60,22 +60,22 @@ int main() {
             delay_ms(10);
         }
 
-        OLED_ShowString(0, 0, (u8*)"STM32 OLED Demo");
+        // OLED_ShowString(0, 0, (u8*)"STM32 OLED Demo");
         
-        // 显示LED状态
-        OLED_ShowString(0, 1, (u8*)"LED:");
-        if (LED2 == 0)
-            OLED_ShowString(32, 1, (u8*)"ON ");
-        else
-            OLED_ShowString(32, 1, (u8*)"OFF");
+        // // 显示LED状态
+        // OLED_ShowString(0, 1, (u8*)"LED:");
+        // if (LED2 == 0)
+        //     OLED_ShowString(32, 1, (u8*)"ON ");
+        // else
+        //     OLED_ShowString(32, 1, (u8*)"OFF");
             
-        // 显示计数器值
-        OLED_ShowString(0, 2, (u8*)"Counter:");
+        // // 显示计数器值
+        // OLED_ShowString(0, 2, (u8*)"Counter:");
 
-        OLED_ShowString(56, 2, (u8*)buffer);
+        // OLED_ShowString(56, 2, (u8*)buffer);
         
-        // 按键提示
-        OLED_ShowString(0, 3, (u8*)"Press K0 to toggle LED");
+        // // 按键提示
+        // OLED_ShowString(0, 3, (u8*)"Press K0 to toggle LED");
         
         counter++;  // 计数器递增
         delay_ms(100);  // 适当延时

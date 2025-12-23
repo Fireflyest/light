@@ -35,7 +35,7 @@ project:
         - file: ./RTE/Device/STM32F401RCTx/stm32f4xx.h
         - file: ./RTE/Device/STM32F401RCTx/system_stm32f4xx.h
         - file: ./RTE/Device/STM32F401RCTx/system_stm32f4xx.c
-        - file: ./RTE/Device/STM32F401RCTx/startup_stm32f401xx.s
+        - file: ./RTE/Device/STM32F401RCTx/startup_stm32f401xc.s
     - group: Middlewares Files
       files:
         - file: ./Middlewares/delay/delay.h

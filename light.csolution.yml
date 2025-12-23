@@ -1,6 +1,6 @@
 # A solution is a collection of related projects that share same base configuration.
 solution:
-  created-for: CMSIS-Toolbox@2.6.0
+  created-for: CMSIS-Toolbox@2.12.0
   cdefault: # use CMSIS-Toolbox default Compiler options
 
   # Compilers that can be selected
@@ -19,6 +19,14 @@ solution:
   target-types:
     - type: STM32F401RCTx
       device: STM32F401RCTx
+      target-set:
+        - set:
+          images:
+            - project-context: GPIO_light.Debug
+          debugger:
+            name: CMSIS-DAP@pyOCD
+            clock: 10000000
+            protocol: swd
 
   # List of different build configurations.
   build-types:
@@ -33,4 +41,4 @@ solution:
   # List related projects.
   projects:
     - project: GPIO_light/GPIO_light.cproject.yml
-  compiler: AC6
+  compiler: GCC
