@@ -142,7 +142,7 @@ void PendSV_Handler(void)
 void SysTick_Handler(void)
 {
 	
-  Delay_Decrement();//��������
+  Delay_Decrement();
 	
 }
 
@@ -152,6 +152,22 @@ void SysTick_Handler(void)
 /*  available peripheral interrupt handler's name please refer to the startup */
 /*  file (startup_stm32f4xx.s).                                               */
 /******************************************************************************/
+
+
+void USART1_IRQHandler(void) {
+  if(USART_GetITStatus(USART1, USART_IT_RXNE) != RESET) {
+      // 读取接收到的数据
+      uint8_t data = USART_ReceiveData(USART1);
+      
+      // 将数据保存到接收缓冲区
+      if(rxIndex < sizeof(rxBuffer) - 1) {
+          rxBuffer[rxIndex++] = data;
+          rxBuffer[rxIndex] = 0;  // 确保字符串结束
+      }
+      uartStatus = 2;  // 接收到数据
+  }
+}
+
 
 /**
   * @brief  This function handles PPP interrupt request.
