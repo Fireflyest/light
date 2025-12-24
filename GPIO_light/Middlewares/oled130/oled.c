@@ -79,7 +79,7 @@ void OLED_Display_Status(DIS_MODE mode) {
             OLED_WR_Byte(0xB0 + i, OLED_CMD);  // 设置页地址（0~7）
             OLED_WR_Byte(0x02, OLED_CMD);      // 设置显示位置—列低地址
             OLED_WR_Byte(0x10, OLED_CMD);      // 设置显示位置—列高地址
-            for (n = 0; n < Max_Column; n++) {
+            for (n = 0; n < MAX_COLUMNS; n++) {
                 OLED_WR_Byte(0, OLED_DATA);
             }
         }  // 更新显示
@@ -89,7 +89,7 @@ void OLED_Display_Status(DIS_MODE mode) {
             OLED_WR_Byte(0xb0 + i, OLED_CMD);  // 设置页地址（0~7）
             OLED_WR_Byte(0x02, OLED_CMD);      // 设置显示位置—列低地址
             OLED_WR_Byte(0x10, OLED_CMD);      // 设置显示位置—列高地址
-            for (n = 0; n < Max_Column; n++) {
+            for (n = 0; n < MAX_COLUMNS; n++) {
                 OLED_WR_Byte(0XFF, OLED_DATA);
                 delay_ms(5);
             }
@@ -106,7 +106,7 @@ void OLED_Display_Status(DIS_MODE mode) {
 void OLED_ShowChar(uint8_t x, uint8_t y, uint8_t chr) {
     uint8_t c = 0, i = 0;
     c = chr - ' ';  // 得到偏移后的值
-    if (x > Max_Column - 1) {
+    if (x > MAX_COLUMNS - 1) {
         x = 0;
         y += 2;
     }
@@ -130,7 +130,7 @@ void OLED_ShowChar(uint8_t x, uint8_t y, uint8_t chr) {
 void OLED_ShowChar1(uint8_t x, uint8_t y, uint8_t chr) {
     uint8_t c = 0, i = 0;
     c = chr - ' ';  // 得到偏移后的值
-    if (x > Max_Column - 1) {
+    if (x > MAX_COLUMNS - 1) {
         x = 0;
         y += 2;
     }
@@ -172,12 +172,12 @@ void OLED_ShowNum(uint8_t x, uint8_t y, uint32_t num, uint8_t len, uint8_t size)
         temp = (num / oled_pow(10, len - t - 1)) % 10;
         if (enshow == 0 && t < (len - 1)) {
             if (temp == 0) {
-                OLED_ShowChar(x + (size / 2) * t, y, ' ');
+                OLED_ShowChar((x + t) * size, y, ' ');
                 continue;
             } else
                 enshow = 1;
         }
-        OLED_ShowChar(x + (size / 2) * t, y, temp + '0');
+        OLED_ShowChar((x + t) * size, y, temp + '0');
     }
 }
 

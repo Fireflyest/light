@@ -44,10 +44,18 @@ project:
         - file: ./Middlewares/gpio/gpio.c
         - file: ./Middlewares/key/key.h
         - file: ./Middlewares/key/key.c
-        - file: ./Middlewares/oled130/bmp.h
-        - file: ./Middlewares/oled130/oledfont.h
+        - file: ./Middlewares/display/bmp.h
+        - file: ./Middlewares/display/bmp.c
+        - file: ./Middlewares/display/font.h
+        - file: ./Middlewares/display/font.c
+        - file: ./Middlewares/display/labels.h
+        - file: ./Middlewares/display/labels.c
+        - file: ./Middlewares/display/render.h
+        - file: ./Middlewares/display/render.c
         - file: ./Middlewares/oled130/oled.h
         - file: ./Middlewares/oled130/oled.c
+        - file: ./Middlewares/ui/ui.h
+        - file: ./Middlewares/ui/ui.c
     - group: STM32F4xx StdPeriph Driver Source Files
       files:
         - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/misc.c

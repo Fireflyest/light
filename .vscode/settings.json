@@ -11,7 +11,16 @@
         "stdint.h": "c",
         "stm32f4xx_adc.h": "c",
         "oledfont.h": "c",
-        "oled.h": "c"
+        "oled.h": "c",
+        "font.h": "c",
+        "pipe.h": "c",
+        "labels.h": "c",
+        "render.h": "c",
+        "math.h": "c",
+        "ui.h": "c",
+        "bmp.h": "c",
+        "string.h": "c",
+        "stdlib.h": "c"
     },
     "cmsis-csolution.actions": [
         {

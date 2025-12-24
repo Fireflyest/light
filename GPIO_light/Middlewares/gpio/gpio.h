@@ -70,7 +70,9 @@ extern "C" {
 #define LED2_OFF GPIO_SetBits(GPIOC, GPIO_Pin_13)   // LED2灯 IO输出高电平--熄灭
 
 void GPIO_Config(void);
-void I2C_Configuration(void);
+void I2C_Config(void);
+void UART_Config(int baudrate);
+void PWM_TIM_Config(uint16_t period, uint16_t prescaler);
 
 #ifdef __cplusplus
 }
