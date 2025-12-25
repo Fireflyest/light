@@ -22,16 +22,12 @@
         "string.h": "c",
         "stdlib.h": "c"
     },
-    "cmsis-csolution.actions": [
-        {
-            "path": "light.csolution.yml",
-            "target": "STM32F401RCTx",
-            "config": {
-                "run": "Flash Device",
-                "debug": "Arm Debugger"
-            }
-        }
-    ],
     "debug.hideSlowPreLaunchWarning": true,
-    "debug.showInStatusBar": "never"
+    "debug.showInStatusBar": "never",
+    "C_Cpp.default.includePath": [
+        "${workspaceFolder}/**",
+        "C:/Users/Lenovo/AppData/Local/arm/packs/ARM/CMSIS/6.2.0/CMSIS/Core/Include"
+    ],
+    "C_Cpp.default.compilerPath": "G:/libraries/arm-gnu-toolchain-15.2.rel1/bin/arm-none-eabi-gcc.exe",
+    "C_Cpp.default.intelliSenseMode": "windows-gcc-arm"
 }
