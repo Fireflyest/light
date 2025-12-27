@@ -99,6 +99,16 @@ void Init_OLED_Hardware(void) {
         OLED_WriteCmd(OLED_Init_Cmds[i]);
     }
     
+    for (int i = 0; i < 8; i++) {
+        OLED_WriteCmd(0xB0 + i);
+        OLED_WriteCmd(0x00);
+        OLED_WriteCmd(0x10);
+        
+        for (int j = 0; j < 132; j++) {
+            OLED_WriteData(0x00);
+        }
+    }
+
     // Enable I2C DMA Request feature
     I2C_DMACmd(I2C1, ENABLE);
 }

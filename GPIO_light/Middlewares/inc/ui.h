@@ -3,6 +3,9 @@
 
 #include "gfx.h"
 
+#define TEXTLIST_MAX_LINES 10
+#define TEXTLIST_MAX_CHARS 20
+
 typedef struct UI_Widget UI_Widget;
 
 struct UI_Widget {
@@ -41,8 +44,20 @@ typedef struct {
     void (*onClick)(void);
 } UI_Button;
 
+typedef struct {
+    UI_Widget base;
+    char buffer[TEXTLIST_MAX_LINES][TEXTLIST_MAX_CHARS];
+    int lineCount;
+    int maxVisibleLines;
+} UI_TextList;
+
+
 // Widget Constructors
 void UI_Label_Init(UI_Label* label, int x, int y, const char* text);
 void UI_Button_Init(UI_Button* button, int x, int y, int w, int h, const char* text, void (*onClick)(void));
+
+void UI_TextList_Init(UI_TextList* list, int x, int y, int w, int h);
+void UI_TextList_AddLine(UI_TextList* list, const char* text);
+void UI_TextList_Clear(UI_TextList* list);
 
 #endif /* __UI_H */

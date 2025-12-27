@@ -1,5 +1,6 @@
 #include "ui.h"
 #include <stddef.h>
+#include <string.h>
 
 UI_Widget* g_focusWidget = NULL;
 
@@ -118,4 +119,59 @@ void UI_Button_Init(UI_Button* button, int x, int y, int w, int h, const char* t
     button->base.isFocusable = 1;
     button->text = text;
     button->onClick = onClick;
+}
+
+static void UI_TextList_Draw(UI_Widget* widget) {
+    UI_TextList* list = (UI_TextList*)widget;
+
+    int startX = widget->x;
+    int startY = widget->y;
+    int lineHeight = 8;
+
+    for (int i = 0; i < list->lineCount; i++) {
+        if ((i + 1) * lineHeight > widget->h - 4) break;
+        GFX_DrawString(startX, startY + (i * lineHeight), list->buffer[i], GFX_COLOR_WHITE);
+    }
+}
+
+void UI_TextList_Init(UI_TextList* list, int x, int y, int w, int h) {
+    list->base.x = x;
+    list->base.y = y;
+    list->base.w = w;
+    list->base.h = h;
+    list->base.parent = NULL;
+    list->base.child = NULL;
+    list->base.next = NULL;
+    list->base.isVisible = 1;
+    list->base.isFocusable = 0;
+    list->base.draw = UI_TextList_Draw;
+    list->base.onKey = NULL;
+
+    list->lineCount = 0;
+    list->maxVisibleLines = (h - 4) / 8; 
+    if (list->maxVisibleLines > TEXTLIST_MAX_LINES) {
+        list->maxVisibleLines = TEXTLIST_MAX_LINES;
+    }
+    
+    memset(list->buffer, 0, sizeof(list->buffer));
+}
+
+void UI_TextList_AddLine(UI_TextList* list, const char* text) {
+    if (list->lineCount < list->maxVisibleLines) {
+        strncpy(list->buffer[list->lineCount], text, TEXTLIST_MAX_CHARS - 1);
+        list->buffer[list->lineCount][TEXTLIST_MAX_CHARS - 1] = '\0';
+        list->lineCount++;
+    } else {
+        for (int i = 0; i < list->maxVisibleLines - 1; i++) {
+            strcpy(list->buffer[i], list->buffer[i+1]);
+        }
+        
+        strncpy(list->buffer[list->maxVisibleLines - 1], text, TEXTLIST_MAX_CHARS - 1);
+        list->buffer[list->maxVisibleLines - 1][TEXTLIST_MAX_CHARS - 1] = '\0';
+    }
+}
+
+void UI_TextList_Clear(UI_TextList* list) {
+    list->lineCount = 0;
+    memset(list->buffer, 0, sizeof(list->buffer));
 }

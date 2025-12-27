@@ -28,3 +28,9 @@ void Init_PWM(uint16_t period, uint16_t prescaler) {
     Init_PWM_TIM(period, prescaler);
     Init_DMA_For_PWM_TIM3(pwmDutyBuffer);
 }
+
+void Init_Display() {
+    Init_OLED_Hardware();
+    Init_GFX();
+    UI_Init();
+}

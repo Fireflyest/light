@@ -18,7 +18,7 @@ typedef enum {
 extern uint8_t GFX_Buffer[GFX_WIDTH * GFX_HEIGHT / 8];
 
 // Initialization
-void GFX_Init(void);
+void Init_GFX(void);
 
 // Core drawing functions
 void GFX_Clear(void);

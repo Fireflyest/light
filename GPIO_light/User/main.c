@@ -3,12 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include "gfx.h"
-#include "ui.h"
-#include "math3d.h"
 
 RCC_ClocksTypeDef RCC_Clocks;
-u8 key;
 
 // 3D Cube Data
 Point3D cubeVertices[8] = {
@@ -76,9 +72,6 @@ void show(void) {
     }
 }
 
-void Display_Init(void) {
-    GFX_Init();
-}
 
 int main() {
     /* Enable Clock Security System(CSS): this will generate an NMI exception
@@ -99,21 +92,29 @@ int main() {
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
 
     Init_USystem();                           // 系统初始化函数
-    Init_USART(BUADRATE_9600);                  // USART1 初始化函数
-    Init_PWM(PWM_PERIOD, PWM_PRESCALER);        // PWM 初始化函数
-
-    LED_Blink(LED_TOGGLE_CMD_BLINK_SLOW, 3);
-    delay_ms(1000);
-
-    Display_Init();  // OLED 显示屏初始化函数
-    UI_Init();
+    Init_Display();  // OLED 显示屏初始化函数
 
     LED_Blink(LED_TOGGLE_CMD_BLINK_FAST, 3);
 
     // UI Setup
-    typedef enum { STATE_COUNTDOWN, STATE_CUBE } AppState;
-    AppState currentState = STATE_COUNTDOWN;
+    typedef enum { STATE_STARTUP, STATE_COUNTDOWN, STATE_CUBE } AppState;
+    AppState currentState = STATE_STARTUP;
     
+    UI_TextList logWindow;
+    UI_TextList_Init(&logWindow, 0, 0, 127, 60);
+    UI_TextList_AddLine(&logWindow, "System Init OK");
+    UI_TextList_AddLine(&logWindow, "Initing UART...");
+
+    Init_USART(BUADRATE_9600);                  // USART1 初始化函数
+
+    UI_TextList_AddLine(&logWindow, "UART Init OK");
+    UI_TextList_AddLine(&logWindow, "Initing PWM...");
+
+    Init_PWM(PWM_PERIOD, PWM_PRESCALER);        // PWM 初始化函数
+
+    UI_TextList_AddLine(&logWindow, "PWM Init OK");
+
+  
     int countdownValue = 3;
     int frameCount = 0;
     char countdownText[16];
@@ -144,7 +145,7 @@ int main() {
             // Draw a simple box around the countdown
             GFX_DrawRect(5, 5, 118, 54, GFX_COLOR_WHITE);
             
-        } else {
+        } else if (currentState == STATE_CUBE) {
             // 3D Logic
             angleX += 0.05;
             angleY += 0.03;
@@ -153,13 +154,16 @@ int main() {
             
             // Optional: Show status overlay
             // show();
+        } else if (currentState == STATE_STARTUP) {
+            // 显示日志窗口
+            UI_DrawTree((UI_Widget*)&logWindow, 0, 0);
         }
 
         // Render
         GFX_Update();
 
-        key = Key_Status();  // 得到键值
-        if (key) {
+        if (Key_Status()) {
+            currentState = STATE_COUNTDOWN;
             char pwm_status[64];
             sprintf(pwm_status, "PWM: %d, %d, %d, %d\r\n", 
                     pwmDutyBuffer[0], pwmDutyBuffer[1], pwmDutyBuffer[2], pwmDutyBuffer[3]);

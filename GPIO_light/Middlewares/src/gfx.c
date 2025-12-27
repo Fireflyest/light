@@ -7,11 +7,7 @@
 // Framebuffer: 128 * 64 bits = 1024 bytes
 uint8_t GFX_Buffer[GFX_WIDTH * GFX_HEIGHT / 8];
 
-void GFX_Init(void) {
-    // Initialize Hardware via the driver layer
-    Init_OLED_Hardware();
-    
-    // Clear local buffer
+void Init_GFX(void) {
     GFX_Clear();
 }
 
