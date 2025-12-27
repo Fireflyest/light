@@ -4,8 +4,10 @@
 # include "stm32f4xx.h"
 # include <string.h>
 
-# define RX_BUFFER_SIZE     32
-# define TX_BUFFER_SIZE     32
+# define BUADRATE_9600     9600
+
+# define RX_BUFFER_SIZE     64
+# define TX_BUFFER_SIZE     64
 # define RX_STATE_IDLE      0
 # define RX_STATE_COMPLETE  1
 

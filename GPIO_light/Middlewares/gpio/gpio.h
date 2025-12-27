@@ -71,8 +71,6 @@ extern "C" {
 
 void GPIO_Config(void);
 void I2C_Config(void);
-void UART_Config(int baudrate);
-void PWM_TIM_Config(uint16_t period, uint16_t prescaler);
 
 #ifdef __cplusplus
 }

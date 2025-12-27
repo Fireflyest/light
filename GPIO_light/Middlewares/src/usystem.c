@@ -23,3 +23,8 @@ void Init_USART(uint16_t baudrate) {
     Init_DMA_For_USART1_TX(txBufferUart1);
     Init_USART1(baudrate);
 }
+
+void Init_PWM(uint16_t period, uint16_t prescaler) {
+    Init_PWM_TIM(period, prescaler);
+    Init_DMA_For_PWM_TIM3(pwmDutyBuffer);
+}

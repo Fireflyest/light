@@ -50,6 +50,8 @@ project:
         - file: ./Middlewares/src/key.c
         - file: ./Middlewares/inc/led.h
         - file: ./Middlewares/src/led.c
+        - file: ./Middlewares/inc/pwm.h
+        - file: ./Middlewares/src/pwm.c
         - file: ./Middlewares/display/bmp.h
         - file: ./Middlewares/display/bmp.c
         - file: ./Middlewares/display/font.h
