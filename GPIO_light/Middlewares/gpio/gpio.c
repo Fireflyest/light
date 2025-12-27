@@ -12,18 +12,6 @@ void GPIO_Config(void) {
 
 
 
-
-    /* Configure C13 pin(PC13) in output function */
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_13;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
-    GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-    GPIO_Init(GPIOC, &GPIO_InitStructure);
-
-
-
-
     /* Configure I2C1 pins: SCL (PB8) and SDA (PB9) */
     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_8 | GPIO_Pin_9;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;         // Alternate Function mode
@@ -35,20 +23,6 @@ void GPIO_Config(void) {
     GPIO_PinAFConfig(GPIOB, GPIO_PinSource8, GPIO_AF_I2C1);
     GPIO_PinAFConfig(GPIOB, GPIO_PinSource9, GPIO_AF_I2C1);
     
-
-
-
-    /* Configure USART1 pins: TX (PB6) and RX (PB7) */
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_7;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;        // Alternate Function mode
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
-    GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;      // Push-pull for UART
-    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;        // Pull-up resistors
-    GPIO_Init(GPIOB, &GPIO_InitStructure);
-    /* Connect PB6 and PB7 to USART1 */
-    GPIO_PinAFConfig(GPIOB, GPIO_PinSource6, GPIO_AF_USART1);
-    GPIO_PinAFConfig(GPIOB, GPIO_PinSource7, GPIO_AF_USART1);
-
 
 
 
@@ -93,40 +67,17 @@ void I2C_Config(void) {
     I2C_Cmd(I2C1, ENABLE);
 }
 
-void UART_Config(int baudrate) {
-    USART_InitTypeDef USART_InitStructure;
-    
-    // 先禁用USART1再配置
-    USART_Cmd(USART1, DISABLE);
 
-    /* USART1 configuration for Bluetooth module */
-    USART_InitStructure.USART_BaudRate = baudrate;                  // Standard baud rate for most BT modules
-    USART_InitStructure.USART_WordLength = USART_WordLength_8b; // 8 data bits
-    USART_InitStructure.USART_StopBits = USART_StopBits_1;      // 1 stop bit
-    USART_InitStructure.USART_Parity = USART_Parity_No;         // No parity
-    USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None; // No flow control
-    USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx; // Enable both transmit and receive
-    
-    /* Initialize USART1 */
-    USART_Init(USART1, &USART_InitStructure);
-
-    USART_ClearFlag(USART1, USART_FLAG_TC | USART_FLAG_RXNE);
-    
-    // 配置 USART 中断
-    NVIC_InitTypeDef NVIC_InitStructure;
-    NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
-    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStructure);
-    
-    /* Enable USART1 */
-    USART_Cmd(USART1, ENABLE);
-
-    // 使能 USART 接收中断
-    USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
-}
-
+/**
+ * Freq = Timer_Clock / ((Prescaler + 1) * (Period + 1))
+ * Duty Cycle (%) = (Pulse / (Period + 1)) * 100
+ * Resolution = Timer_Clock / (Prescaler + 1)
+ * 
+ * @brief  Configure TIM3 for PWM output on 4 channels
+ * @param  period: PWM period (ARR value)
+ * @param  prescaler: Timer prescaler value
+ * @retval None
+ */
 void PWM_TIM_Config(uint16_t period, uint16_t prescaler) {
     TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
     TIM_OCInitTypeDef TIM_OCInitStructure;

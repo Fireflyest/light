@@ -15,7 +15,7 @@
             "processorName": "${command:cmsis-csolution.getProcessorName}"
         },
         {
-            "name": "CMSIS_DAP@pyOCD (launch)",
+            "name": "STLink@pyOCD (launch)",
             "type": "gdbtarget",
             "request": "launch",
             "cwd": "${workspaceFolder}/",
@@ -56,7 +56,7 @@
             }
         },
         {
-            "name": "CMSIS_DAP@pyOCD (attach)",
+            "name": "STLink@pyOCD (attach)",
             "type": "gdbtarget",
             "request": "attach",
             "cwd": "${workspaceFolder}/",

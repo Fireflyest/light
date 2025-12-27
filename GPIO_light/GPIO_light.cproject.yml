@@ -38,12 +38,18 @@ project:
         - file: ./RTE/Device/STM32F401RCTx/startup_stm32f401xc.s
     - group: Middlewares Files
       files:
-        - file: ./Middlewares/delay/delay.h
-        - file: ./Middlewares/delay/delay.c
+        - file: ./Middlewares/inc/usystem.h
+        - file: ./Middlewares/src/usystem.c
+        - file: ./Middlewares/inc/usart1.h
+        - file: ./Middlewares/src/usart1.c
+        - file: ./Middlewares/inc/dma.h
+        - file: ./Middlewares/src/dma.c
         - file: ./Middlewares/gpio/gpio.h
         - file: ./Middlewares/gpio/gpio.c
-        - file: ./Middlewares/key/key.h
-        - file: ./Middlewares/key/key.c
+        - file: ./Middlewares/inc/key.h
+        - file: ./Middlewares/src/key.c
+        - file: ./Middlewares/inc/led.h
+        - file: ./Middlewares/src/led.c
         - file: ./Middlewares/display/bmp.h
         - file: ./Middlewares/display/bmp.c
         - file: ./Middlewares/display/font.h

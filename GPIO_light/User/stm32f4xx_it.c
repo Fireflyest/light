@@ -29,7 +29,8 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f4xx_it.h"
-#include "main.h"
+
+#include "usystem.h"
 
 /** @addtogroup Template_Project
   * @{
@@ -141,9 +142,48 @@ void PendSV_Handler(void)
   */
 void SysTick_Handler(void)
 {
-	
-  Delay_Decrement();
-	
+    static uint8_t keyTiming = 0;
+    static uint8_t lastRawStatus = KEY_STATE_RELEASED;
+
+    if (uwTimingDelay != 0x00) {
+        uwTimingDelay--;
+    }
+    
+    if (keyEnable == KEY_ENABLE) {
+        uint8_t currentRawStatus = !(GPIOA->IDR & GPIO_Pin_0);
+        if (currentRawStatus == lastRawStatus) {
+            if (++keyTiming >= KEY_DEBOUNCE_TIME) {
+                keyStatus = currentRawStatus;
+                keyTiming = KEY_DEBOUNCE_TIME; 
+            }
+        } else {
+            keyTiming = 0;
+            lastRawStatus = currentRawStatus;
+        }
+    }
+    
+
+    
+    static uint8_t ledTiming = 0;
+    if (ledToggleCount > 0) {
+        ledTiming++;
+        if (ledTiming >= LED_TOGGLE_INTERVAL) {
+            ledTiming = 0;
+
+            if (ledToggleCmd & 0x01) {
+              GPIOC->BSRRL = GPIO_Pin_13;
+            } else {
+              GPIOC->BSRRH = GPIO_Pin_13;
+            }
+
+            uint8_t lastBit = ledToggleCmd & 0x01;
+            ledToggleCmd = (ledToggleCmd >> 1) | (lastBit << 7);
+
+            ledToggleCount--;
+        }
+    } else {
+        ledTiming = LED_TOGGLE_INTERVAL; 
+    }
 }
 
 /******************************************************************************/
@@ -155,17 +195,23 @@ void SysTick_Handler(void)
 
 
 void USART1_IRQHandler(void) {
-  if(USART_GetITStatus(USART1, USART_IT_RXNE) != RESET) {
-      // 读取接收到的数据
-      uint8_t data = USART_ReceiveData(USART1);
-      
-      // 将数据保存到接收缓冲区
-      if(rxIndex < sizeof(rxBuffer) - 1) {
-          rxBuffer[rxIndex++] = data;
-          rxBuffer[rxIndex] = 0;  // 确保字符串结束
-      }
-      uartStatus = 2;  // 接收到数据
-  }
+    if (USART_GetITStatus(USART1, USART_IT_IDLE) != RESET) {
+        volatile uint32_t temp;
+        temp = USART1->SR;
+        temp = USART1->DR;
+
+        DMA_Cmd(DMA2_Stream2, DISABLE); 
+        uint16_t timeout;
+        for (timeout = 0xFFFF; DMA_GetCmdStatus(DMA2_Stream2) != DISABLE && timeout > 0; timeout--) ;
+
+        rxIndexUart1 = sizeof(rxBufferUart1) - DMA_GetCurrDataCounter(DMA2_Stream2);
+        rxStatusUart1 = RX_STATE_COMPLETE;
+
+        DMA_ClearFlag(DMA2_Stream2, DMA_FLAG_TCIF2 | DMA_FLAG_HTIF2 | DMA_FLAG_TEIF2 | DMA_FLAG_DMEIF2 | DMA_FLAG_FEIF2);
+
+        DMA_SetCurrDataCounter(DMA2_Stream2, sizeof(rxBufferUart1));
+        DMA_Cmd(DMA2_Stream2, ENABLE);
+    }
 }
 
 

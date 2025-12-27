@@ -1,7 +1,7 @@
 #ifndef __OLED_H
 #define __OLED_H
 
-#include "delay.h"
+#include "usystem.h"
 #include "stm32f4xx_conf.h"
 #include "bmp.h"
 #include "font.h"

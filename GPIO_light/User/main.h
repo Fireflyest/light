@@ -33,9 +33,9 @@
 #include "RTE_Components.h"
 #include "stm32f4xx.h"
 
-#include "delay.h"
 #include "gpio.h"
 #include "key.h"
+#include "usystem.h"
 #include "ui.h"
 
 extern u8 key;           // 保存键值
