@@ -1,49 +1,74 @@
 #include "main.h"
-#include <string.h>  // Include for standard memcpy
-#include <stdio.h>   // Include for sprintf
+#include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
+#include "gfx.h"
+#include "ui.h"
+#include "math3d.h"
 
 RCC_ClocksTypeDef RCC_Clocks;
+u8 key;
 
-u8 key;           // 保存键值
+// 3D Cube Data
+Point3D cubeVertices[8] = {
+    {-10, -10, -10}, {10, -10, -10}, {10, 10, -10}, {-10, 10, -10},
+    {-10, -10, 10}, {10, -10, 10}, {10, 10, 10}, {-10, 10, 10}
+};
 
+int cubeEdges[12][2] = {
+    {0, 1}, {1, 2}, {2, 3}, {3, 0}, // Front face
+    {4, 5}, {5, 6}, {6, 7}, {7, 4}, // Back face
+    {0, 4}, {1, 5}, {2, 6}, {3, 7}  // Connecting lines
+};
+
+float angleX = 0, angleY = 0, angleZ = 0;
+
+void DrawCube(void) {
+    Point2D projected[8];
+    
+    for(int i=0; i<8; i++) {
+        Point3D p = cubeVertices[i];
+        p = Math3D_RotateX(p, angleX);
+        p = Math3D_RotateY(p, angleY);
+        p = Math3D_RotateZ(p, angleZ);
+        projected[i] = Math3D_Project(p, 64, 40); // Focal length 64, Camera Z 40
+    }
+    
+    for(int i=0; i<12; i++) {
+        Point2D p1 = projected[cubeEdges[i][0]];
+        Point2D p2 = projected[cubeEdges[i][1]];
+        GFX_DrawLine(p1.x, p1.y, p2.x, p2.y, GFX_COLOR_WHITE);
+    }
+}
 
 void show(void) {
-    u8 buffer[16];  // 字符缓冲区
+    GFX_DrawString(0, 0, "STM32 3D & UART", GFX_COLOR_WHITE);
 
-    OLED_ShowString(0, 0, (u8*)"STM32 UART Test");
-
-    // 显示LED状态
-    OLED_ShowString(0, 1, (u8*)"LED:");
-    if (LED2 == 0)
-        OLED_ShowString(32, 1, (u8*)"ON ");
-    else
-        OLED_ShowString(32, 1, (u8*)"OFF");
-
-    // 显示UART状态
-    OLED_ShowString(0, 2, (u8*)"UART:");
+    // UART Status
+    GFX_DrawString(0, 20, "UART:", GFX_COLOR_WHITE);
     switch (rxStatusUart1) {
     case 0:
-        OLED_ShowString(40, 2, (u8*)"IDLE  ");
+        GFX_DrawString(40, 20, "IDLE  ", GFX_COLOR_WHITE);
         break;
     case 1:
-        OLED_ShowString(40, 2, (u8*)"RX OK ");
+        GFX_DrawString(40, 20, "RX OK ", GFX_COLOR_WHITE);
         break;
     }
 
-    // 显示全部PWM状态
+    // PWM Status
     char pwmStatus[64];
     sprintf(pwmStatus, "B0:%4d", pwmDutyBuffer[0]);
-    OLED_ShowString(0, 4, pwmStatus);
+    GFX_DrawString(0, 40, pwmStatus, GFX_COLOR_WHITE);
 
-    // 显示接收到的数据
-    OLED_ShowString(0, 3, (u8*)"RX:");
+    // RX Data
+    GFX_DrawString(0, 30, "RX:", GFX_COLOR_WHITE);
     if (rxStatusUart1 == 1 && rxIndexUart1 > 0) {
         uint8_t buffer[11];
         uint16_t len = Read_USART1_Data(buffer);
-        OLED_ShowString(24, 3, "          ");
-        OLED_ShowString(24, 3, (u8*)buffer);
-        // 转数字 0~100 每5变化
+        GFX_DrawString(24, 30, (char*)buffer, GFX_COLOR_WHITE);
+        
+        // Logic from original show()
         pwmDutyBuffer[0] = Map_Percent_To_Real(atoi((char*)buffer));
         pwmDutyBuffer[1] = Map_Percent_To_Real(atoi((char*)buffer));
         pwmDutyBuffer[2] = Map_Percent_To_Real(atoi((char*)buffer));
@@ -52,43 +77,7 @@ void show(void) {
 }
 
 void Display_Init(void) {
-    // 初始化OLED
-    OLEDConfiguration();
-    Render_Init();
-
-    // Render_Test();
-
-    // // 初始化UI系统
-    // UIWindow mainWindow;
-    // UI_CreateWindow(&mainWindow, 10, 10, 116, 54, (u8*)"Main", LINE_SOLID);
-    // UI_Init(&mainWindow);
-
-    // // 创建主窗口内的组件
-    // UILabel titleLabel;
-    // UI_CreateLabel(&titleLabel, 0, 20, 60, 8, (u8*)"STM32 Demo UI");
-    // titleLabel.alignment = ALIGN_CENTER;
-
-    // UIButton button1;
-    // UI_CreateButton(&button1, 0, 40, 60, 12, (u8*)"LED Control", LINE_SOLID);
-    // button1.onClick = 0;
-
-    // UICheckbox* checkbox1 = UI_CreateCheckbox(25, 40, 78, 8, "Enable Feature", 0);
-    // checkbox1->onToggle = 0;
-
-    // UIProgressBar* progress1 = UI_CreateProgressBar(20, 55, 88, 6, 75, 0);
-    // progress1->progress = 75;  // 75%
-
-    // // 添加组件到界面
-    // UI_AddChild(g_uiManager.root, (UIObject*)&titleLabel);
-    // UI_AddChild(g_uiManager.root, (UIObject*)&button1);
-    // UI_AddChild(g_uiManager.root, (UIObject*)&checkbox1);
-    // UI_AddChild(g_uiManager.root, (UIObject*)&progress1);
-
-    // 设置初始焦点
-    // UI_SetFocus((UIObject*)button1);
-
-    // 刷新屏幕
-    // UI_RefreshScreen();
+    GFX_Init();
 }
 
 int main() {
@@ -109,30 +98,65 @@ int main() {
 
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
 
-    GPIO_Config();  // I/O 引脚功能初始化函数 ： 初始化 LED 对应的引脚
     Init_USystem();                           // 系统初始化函数
     Init_USART(BUADRATE_9600);                  // USART1 初始化函数
-
-
-    LED_Blink(LED_TOGGLE_CMD_BLINK_FAST, 3);
-    delay_ms(1000);
-
-    I2C_Config();                               // I2C 初始化函数
-     
     Init_PWM(PWM_PERIOD, PWM_PRESCALER);        // PWM 初始化函数
 
     LED_Blink(LED_TOGGLE_CMD_BLINK_SLOW, 3);
     delay_ms(1000);
 
     Display_Init();  // OLED 显示屏初始化函数
-
+    UI_Init();
 
     LED_Blink(LED_TOGGLE_CMD_BLINK_FAST, 3);
 
+    // UI Setup
+    typedef enum { STATE_COUNTDOWN, STATE_CUBE } AppState;
+    AppState currentState = STATE_COUNTDOWN;
+    
+    int countdownValue = 3;
+    int frameCount = 0;
+    char countdownText[16];
+    
+    UI_Label lblTitle, lblCount;
+    UI_Label_Init(&lblTitle, 10, 10, "Starting in:");
+    UI_Label_Init(&lblCount, 50, 30, countdownText);
+
     for (;;) {
-        // OLED_ShowString(0, 2, (u8*)"STM32 Test");
-        // delay_ms(1000);
-        // Render_FrameBuffer();
+        GFX_Clear();
+
+        if (currentState == STATE_COUNTDOWN) {
+            // Update Countdown Logic
+            frameCount++;
+            if (frameCount >= 33) { // Approx 1 second (30ms * 33 = 990ms)
+                frameCount = 0;
+                countdownValue--;
+                if (countdownValue < 0) {
+                    currentState = STATE_CUBE;
+                }
+            }
+            
+            // Draw UI
+            sprintf(countdownText, "%d", countdownValue);
+            UI_DrawTree((UI_Widget*)&lblTitle, 0, 0);
+            UI_DrawTree((UI_Widget*)&lblCount, 0, 0);
+            
+            // Draw a simple box around the countdown
+            GFX_DrawRect(5, 5, 118, 54, GFX_COLOR_WHITE);
+            
+        } else {
+            // 3D Logic
+            angleX += 0.05;
+            angleY += 0.03;
+            angleZ += 0.01;
+            DrawCube();
+            
+            // Optional: Show status overlay
+            // show();
+        }
+
+        // Render
+        GFX_Update();
 
         key = Key_Status();  // 得到键值
         if (key) {
@@ -141,10 +165,6 @@ int main() {
                     pwmDutyBuffer[0], pwmDutyBuffer[1], pwmDutyBuffer[2], pwmDutyBuffer[3]);
             Write_USART1_Data(pwm_status, strlen(pwm_status));
         }
-
-
-
-        show();  // 显示状态
 
         delay_ms(30);  // 适当延时
     }

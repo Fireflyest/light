@@ -33,25 +33,11 @@
 #include "RTE_Components.h"
 #include "stm32f4xx.h"
 
-#include "gpio.h"
 #include "key.h"
 #include "usystem.h"
 #include "ui.h"
 
-extern u8 key;           // 保存键值
-extern u8 rxBuffer[32];  // 接收缓冲区
-extern u8 rxIndex;       // 接收索引
-extern u8 txData[16];    // 发送测试数据
-extern u8 uartStatus;    // UART状态：0-空闲，1-发送完成，2-接收到数据
 
-#define LED_PORT GPIOC
-#define LED_PIN GPIO_Pin_13
-
-// #define PWM_PERIOD     1000    // PWM 周期
-// #define PWM_PRESCALER  84      // 84MHz 时钟下，分频为 84 得到 1MHz 的计数频率
-
-#define PWM_PERIOD     20000    // PWM 周期
-#define PWM_PRESCALER  84      // 84MHz 时钟下，分频为 84 得到 1MHz 的计数频率
 
 #endif /* __MAIN_H */
 

@@ -44,26 +44,24 @@ project:
         - file: ./Middlewares/src/usart1.c
         - file: ./Middlewares/inc/dma.h
         - file: ./Middlewares/src/dma.c
-        - file: ./Middlewares/gpio/gpio.h
-        - file: ./Middlewares/gpio/gpio.c
         - file: ./Middlewares/inc/key.h
         - file: ./Middlewares/src/key.c
         - file: ./Middlewares/inc/led.h
         - file: ./Middlewares/src/led.c
         - file: ./Middlewares/inc/pwm.h
         - file: ./Middlewares/src/pwm.c
+        - file: ./Middlewares/inc/gfx.h
+        - file: ./Middlewares/src/gfx.c
+        - file: ./Middlewares/inc/math3d.h
+        - file: ./Middlewares/src/math3d.c
+        - file: ./Middlewares/inc/ui.h
+        - file: ./Middlewares/src/ui.c
+        - file: ./Middlewares/inc/i2coled.h
+        - file: ./Middlewares/src/i2coled.c
         - file: ./Middlewares/display/bmp.h
         - file: ./Middlewares/display/bmp.c
         - file: ./Middlewares/display/font.h
         - file: ./Middlewares/display/font.c
-        - file: ./Middlewares/display/labels.h
-        - file: ./Middlewares/display/labels.c
-        - file: ./Middlewares/display/render.h
-        - file: ./Middlewares/display/render.c
-        - file: ./Middlewares/oled130/oled.h
-        - file: ./Middlewares/oled130/oled.c
-        - file: ./Middlewares/ui/ui.h
-        - file: ./Middlewares/ui/ui.c
     - group: STM32F4xx StdPeriph Driver Source Files
       files:
         - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/misc.c

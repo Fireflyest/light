@@ -215,6 +215,15 @@ void USART1_IRQHandler(void) {
 }
 
 
+void DMA1_Stream6_IRQHandler(void) {
+    if (DMA_GetITStatus(DMA1_Stream6, DMA_IT_TCIF6)) {
+        DMA_ClearITPendingBit(DMA1_Stream6, DMA_IT_TCIF6);
+        I2C_GenerateSTOP(I2C1, ENABLE);
+        DMA_Cmd(DMA1_Stream6, DISABLE);
+    }
+}
+
+
 /**
   * @brief  This function handles PPP interrupt request.
   * @param  None
@@ -249,3 +258,5 @@ void USART1_IRQHandler(void) {
 
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+
+

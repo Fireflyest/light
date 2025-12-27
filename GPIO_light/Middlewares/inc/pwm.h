@@ -8,8 +8,8 @@
 
 # define PWM_MAX_DUTY   PWM_PERIOD          // 最大占空比
 # define PWM_MIN_DUTY   0                   // 最小占空比
-# define PWM_MAX_REAL   2000                // 最大实际值
-# define PWM_MIN_REAL   1000                // 最小实际
+# define PWM_MAX_REAL   2000                // 硬件最大实际值
+# define PWM_MIN_REAL   1000                // 硬件最小实际值
 
 
 extern uint16_t pwmDutyBuffer[4];
