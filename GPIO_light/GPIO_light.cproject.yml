@@ -58,6 +58,8 @@ project:
         - file: ./Middlewares/src/ui.c
         - file: ./Middlewares/inc/i2coled.h
         - file: ./Middlewares/src/i2coled.c
+        - file: ./Middlewares/inc/mpu.h
+        - file: ./Middlewares/src/mpu.c
         - file: ./Middlewares/display/bmp.h
         - file: ./Middlewares/display/bmp.c
         - file: ./Middlewares/display/font.h

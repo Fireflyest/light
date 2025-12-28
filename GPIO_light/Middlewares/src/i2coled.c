@@ -66,28 +66,30 @@ static void I2C_Configuration(void) {
 }
 
 void OLED_WriteCmd(uint8_t cmd) {
-    while(I2C_GetFlagStatus(I2C1, I2C_FLAG_BUSY));
+    uint16_t timeout;
+    for (timeout = 0xFFFF; timeout > 0 && I2C_GetFlagStatus(I2C1, I2C_FLAG_BUSY); timeout--);
     I2C_GenerateSTART(I2C1, ENABLE);
-    while(!I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_MODE_SELECT));
+    for (timeout = 0xFFFF; timeout > 0 && !I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_MODE_SELECT); timeout--);
     I2C_Send7bitAddress(I2C1, OLED_ADDRESS, I2C_Direction_Transmitter);
-    while(!I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED));
+    for (timeout = 0xFFFF; timeout > 0 && !I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED); timeout--);
     I2C_SendData(I2C1, 0x00); // Co=0, D/C#=0 (Command)
-    while(!I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_BYTE_TRANSMITTED));
+    for (timeout = 0xFFFF; timeout > 0 && !I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_BYTE_TRANSMITTED); timeout--);
     I2C_SendData(I2C1, cmd);
-    while(!I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_BYTE_TRANSMITTED));
+    for (timeout = 0xFFFF; timeout > 0 && !I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_BYTE_TRANSMITTED); timeout--);
     I2C_GenerateSTOP(I2C1, ENABLE);
 }
 
 void OLED_WriteData(uint8_t data) {
-    while(I2C_GetFlagStatus(I2C1, I2C_FLAG_BUSY));
+    uint16_t timeout;
+    for (timeout = 0xFFFF; timeout > 0 && I2C_GetFlagStatus(I2C1, I2C_FLAG_BUSY); timeout--);
     I2C_GenerateSTART(I2C1, ENABLE);
-    while(!I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_MODE_SELECT));
+    for (timeout = 0xFFFF; timeout > 0 && !I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_MODE_SELECT); timeout--);
     I2C_Send7bitAddress(I2C1, OLED_ADDRESS, I2C_Direction_Transmitter);
-    while(!I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED));
+    for (timeout = 0xFFFF; timeout > 0 && !I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED); timeout--);
     I2C_SendData(I2C1, 0x40); // Co=0, D/C#=1 (Data)
-    while(!I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_BYTE_TRANSMITTED));
+    for (timeout = 0xFFFF; timeout > 0 && !I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_BYTE_TRANSMITTED); timeout--);
     I2C_SendData(I2C1, data);
-    while(!I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_BYTE_TRANSMITTED));
+    for (timeout = 0xFFFF; timeout > 0 && !I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_BYTE_TRANSMITTED); timeout--);
     I2C_GenerateSTOP(I2C1, ENABLE);
 }
 
@@ -120,17 +122,18 @@ void OLED_UpdatePage_DMA(uint8_t pageIdx, uint8_t* pBuffer) {
     OLED_WriteCmd(0x10); // Higher Column Start
 
     // 2. Prepare I2C for Data Stream
-    while(I2C_GetFlagStatus(I2C1, I2C_FLAG_BUSY));
+    uint16_t timeout;
+    for (timeout = 0xFFFF; timeout > 0 && I2C_GetFlagStatus(I2C1, I2C_FLAG_BUSY); timeout--);
     
     I2C_GenerateSTART(I2C1, ENABLE);
-    while(!I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_MODE_SELECT));
+    for (timeout = 0xFFFF; timeout > 0 && !I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_MODE_SELECT); timeout--);
     
     I2C_Send7bitAddress(I2C1, OLED_ADDRESS, I2C_Direction_Transmitter);
-    while(!I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED));
+    for (timeout = 0xFFFF; timeout > 0 && !I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED); timeout--);
     
     // Send Control Byte 0x40 (Data Stream follows)
     I2C_SendData(I2C1, 0x40);
-    while(!I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_BYTE_TRANSMITTED));
+    for (timeout = 0xFFFF; timeout > 0 && !I2C_CheckEvent(I2C1, I2C_EVENT_MASTER_BYTE_TRANSMITTED); timeout--);
     
     // 3. Trigger DMA for 128 bytes of pixel data
     // Note: Init_DMA_For_I2C1_TX must be defined in dma.c

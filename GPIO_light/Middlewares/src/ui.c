@@ -4,7 +4,7 @@
 
 UI_Widget* g_focusWidget = NULL;
 
-void UI_Init(void) {
+void Init_UI(void) {
     g_focusWidget = NULL;
 }
 
@@ -70,6 +70,24 @@ void UI_ProcessKey(uint8_t key) {
 
 // --- Widget Implementations ---
 
+void UI_Window_Draw(UI_Widget* w) {
+    GFX_DrawRect(g_uiOffsetX - 1, g_uiOffsetY - 1, w->w + 2, w->h + 2, GFX_COLOR_WHITE);
+}
+
+void UI_Window_Init(UI_Window* window, int x, int y, int w, int h) {
+    window->base.x = x;
+    window->base.y = y;
+    window->base.w = w;
+    window->base.h = h;
+    window->base.parent = NULL;
+    window->base.child = NULL;
+    window->base.next = NULL;
+    window->base.draw = UI_Window_Draw;
+    window->base.onKey = NULL;
+    window->base.isVisible = 1;
+    window->base.isFocusable = 0;
+}
+
 void UI_Label_Draw(UI_Widget* w) {
     UI_Label* label = (UI_Label*)w;
     GFX_DrawString(g_uiOffsetX, g_uiOffsetY, label->text, GFX_COLOR_WHITE);
@@ -121,57 +139,125 @@ void UI_Button_Init(UI_Button* button, int x, int y, int w, int h, const char* t
     button->onClick = onClick;
 }
 
-static void UI_TextList_Draw(UI_Widget* widget) {
-    UI_TextList* list = (UI_TextList*)widget;
+
+void UI_Logger_AnimStep(UI_Logger* logger) {
+    if (logger->animLineIndex >= logger->lineCount) return;
+
+    if (logger->animWaitFrame > 0) {
+        logger->animWaitFrame--;
+        return;
+    }
+
+    int len = strlen(logger->buffer[logger->animLineIndex]);
+    if (logger->animCharIndex < len) {
+        logger->animCharIndex += 3;
+        if (logger->animCharIndex > len) logger->animCharIndex = len;
+    } else {
+        logger->animLineIndex++;
+        logger->animCharIndex = 0;
+        logger->animWaitFrame = 5;
+    }
+}
+
+static void UI_Logger_Draw(UI_Widget* widget) {
+    UI_Logger* logger = (UI_Logger*)widget;
+
+    UI_Logger_AnimStep(logger);
 
     int startX = widget->x;
     int startY = widget->y;
-    int lineHeight = 8;
+    int lineHeight = 9;
 
-    for (int i = 0; i < list->lineCount; i++) {
-        if ((i + 1) * lineHeight > widget->h - 4) break;
-        GFX_DrawString(startX, startY + (i * lineHeight), list->buffer[i], GFX_COLOR_WHITE);
+    if (logger->lineCount == 0) return;
+
+    // draw fully shown lines
+    for (int i = 0; i < logger->animLineIndex && i < logger->maxVisibleLines; i++) {
+        GFX_DrawString(startX, startY + (i * lineHeight), logger->buffer[i], GFX_COLOR_WHITE);
+    }
+
+    static uint16_t ui_blinkCounter = 0;
+    ui_blinkCounter++;
+    // draw current animating line (partial) with cursor
+    if (logger->animLineIndex < logger->lineCount && logger->animLineIndex < logger->maxVisibleLines) {
+        int i = logger->animLineIndex;
+        int fullLen = strlen(logger->buffer[i]);
+        int showLen = logger->animCharIndex;
+        if (showLen > fullLen) showLen = fullLen;
+
+        if (showLen > 0) {
+            char temp[TEXTLIST_MAX_CHARS + 1] = {0};
+            strncpy(temp, logger->buffer[i], showLen);
+            temp[showLen] = '\0';
+            GFX_DrawString(startX, startY + (i * lineHeight), temp, GFX_COLOR_WHITE);
+        }
+
+        // draw blinking vertical cursor (no character concat)
+        if ((ui_blinkCounter & 0x10) == 0) {
+            int cursorX = startX + showLen * 6 + 1;
+            int y1 = startY + (i * lineHeight) - 1;
+            int y2 = y1 + lineHeight;
+            GFX_DrawLine(cursorX, y1, cursorX, y2, GFX_COLOR_WHITE);
+        }
+
+    } else if (logger->animLineIndex >= logger->lineCount) {
+        // animation finished: draw all lines and cursor at end of last line
+        for (int i = 0; i < logger->lineCount && i < logger->maxVisibleLines; i++) {
+            GFX_DrawString(startX, startY + (i * lineHeight), logger->buffer[i], GFX_COLOR_WHITE);
+        }
+        int last = logger->lineCount - 1;
+        int fullLen = strlen(logger->buffer[last]);
+        if ((ui_blinkCounter & 0x10) == 0) {
+            int cursorX = startX + fullLen * 6 + 1;
+            int y1 = startY + (last * lineHeight) - 1;
+            int y2 = y1 + lineHeight;
+            GFX_DrawLine(cursorX, y1, cursorX, y2, GFX_COLOR_WHITE);
+        }
     }
 }
 
-void UI_TextList_Init(UI_TextList* list, int x, int y, int w, int h) {
-    list->base.x = x;
-    list->base.y = y;
-    list->base.w = w;
-    list->base.h = h;
-    list->base.parent = NULL;
-    list->base.child = NULL;
-    list->base.next = NULL;
-    list->base.isVisible = 1;
-    list->base.isFocusable = 0;
-    list->base.draw = UI_TextList_Draw;
-    list->base.onKey = NULL;
+void UI_Logger_Init(UI_Logger* logger, int x, int y, int w, int h) {
+    logger->base.x = x;
+    logger->base.y = y;
+    logger->base.w = w;
+    logger->base.h = h;
+    logger->base.parent = NULL;
+    logger->base.child = NULL;
+    logger->base.next = NULL;
+    logger->base.isVisible = 1;
+    logger->base.isFocusable = 0;
+    logger->base.draw = UI_Logger_Draw;
+    logger->base.onKey = NULL;
 
-    list->lineCount = 0;
-    list->maxVisibleLines = (h - 4) / 8; 
-    if (list->maxVisibleLines > TEXTLIST_MAX_LINES) {
-        list->maxVisibleLines = TEXTLIST_MAX_LINES;
+    logger->lineCount = 0;
+    logger->maxVisibleLines = (h - 4) / 8; 
+    if (logger->maxVisibleLines > TEXTLIST_MAX_LINES) {
+        logger->maxVisibleLines = TEXTLIST_MAX_LINES;
     }
     
-    memset(list->buffer, 0, sizeof(list->buffer));
+    memset(logger->buffer, 0, sizeof(logger->buffer));
 }
 
-void UI_TextList_AddLine(UI_TextList* list, const char* text) {
-    if (list->lineCount < list->maxVisibleLines) {
-        strncpy(list->buffer[list->lineCount], text, TEXTLIST_MAX_CHARS - 1);
-        list->buffer[list->lineCount][TEXTLIST_MAX_CHARS - 1] = '\0';
-        list->lineCount++;
+void UI_Logger_AddLine(UI_Logger* logger, const char* text) {
+    if (logger->lineCount < logger->maxVisibleLines) {
+        strncpy(logger->buffer[logger->lineCount], text, TEXTLIST_MAX_CHARS - 1);
+        logger->buffer[logger->lineCount][TEXTLIST_MAX_CHARS - 1] = '\0';
+        logger->lineCount++;
     } else {
-        for (int i = 0; i < list->maxVisibleLines - 1; i++) {
-            strcpy(list->buffer[i], list->buffer[i+1]);
+        for (int i = 0; i < logger->maxVisibleLines - 1; i++) {
+            strcpy(logger->buffer[i], logger->buffer[i+1]);
         }
         
-        strncpy(list->buffer[list->maxVisibleLines - 1], text, TEXTLIST_MAX_CHARS - 1);
-        list->buffer[list->maxVisibleLines - 1][TEXTLIST_MAX_CHARS - 1] = '\0';
+        strncpy(logger->buffer[logger->maxVisibleLines - 1], text, TEXTLIST_MAX_CHARS - 1);
+        logger->buffer[logger->maxVisibleLines - 1][TEXTLIST_MAX_CHARS - 1] = '\0';
     }
 }
 
-void UI_TextList_Clear(UI_TextList* list) {
-    list->lineCount = 0;
-    memset(list->buffer, 0, sizeof(list->buffer));
+void UI_Logger_Clear(UI_Logger* logger) {
+    logger->lineCount = 0;
+    logger->animCharIndex = 0;
+    logger->animLineIndex = 0;
+    logger->animWaitFrame = 0;
+    memset(logger->buffer, 0, sizeof(logger->buffer));
 }
+
+

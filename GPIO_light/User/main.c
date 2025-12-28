@@ -2,41 +2,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 
 RCC_ClocksTypeDef RCC_Clocks;
-
-// 3D Cube Data
-Point3D cubeVertices[8] = {
-    {-10, -10, -10}, {10, -10, -10}, {10, 10, -10}, {-10, 10, -10},
-    {-10, -10, 10}, {10, -10, 10}, {10, 10, 10}, {-10, 10, 10}
-};
-
-int cubeEdges[12][2] = {
-    {0, 1}, {1, 2}, {2, 3}, {3, 0}, // Front face
-    {4, 5}, {5, 6}, {6, 7}, {7, 4}, // Back face
-    {0, 4}, {1, 5}, {2, 6}, {3, 7}  // Connecting lines
-};
-
-float angleX = 0, angleY = 0, angleZ = 0;
-
-void DrawCube(void) {
-    Point2D projected[8];
-    
-    for(int i=0; i<8; i++) {
-        Point3D p = cubeVertices[i];
-        p = Math3D_RotateX(p, angleX);
-        p = Math3D_RotateY(p, angleY);
-        p = Math3D_RotateZ(p, angleZ);
-        projected[i] = Math3D_Project(p, 64, 40); // Focal length 64, Camera Z 40
-    }
-    
-    for(int i=0; i<12; i++) {
-        Point2D p1 = projected[cubeEdges[i][0]];
-        Point2D p2 = projected[cubeEdges[i][1]];
-        GFX_DrawLine(p1.x, p1.y, p2.x, p2.y, GFX_COLOR_WHITE);
-    }
-}
 
 void show(void) {
     GFX_DrawString(0, 0, "STM32 3D & UART", GFX_COLOR_WHITE);
@@ -91,85 +58,28 @@ int main() {
 
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
 
-    Init_USystem();                           // 系统初始化函数
+    Init_USystem();  // 按键和LED灯初始化
     Init_Display();  // OLED 显示屏初始化函数
-
+    
     LED_Blink(LED_TOGGLE_CMD_BLINK_FAST, 3);
 
-    // UI Setup
-    typedef enum { STATE_STARTUP, STATE_COUNTDOWN, STATE_CUBE } AppState;
-    AppState currentState = STATE_STARTUP;
-    
-    UI_TextList logWindow;
-    UI_TextList_Init(&logWindow, 0, 0, 127, 60);
-    UI_TextList_AddLine(&logWindow, "System Init OK");
-    UI_TextList_AddLine(&logWindow, "Initing UART...");
+    UI_Logger_Init(&logWindow, 0, 0, 127, 60);
 
     Init_USART(BUADRATE_9600);                  // USART1 初始化函数
 
-    UI_TextList_AddLine(&logWindow, "UART Init OK");
-    UI_TextList_AddLine(&logWindow, "Initing PWM...");
+    UI_Logger_AddLine(&logWindow, "UART Init OK");
 
     Init_PWM(PWM_PERIOD, PWM_PRESCALER);        // PWM 初始化函数
 
-    UI_TextList_AddLine(&logWindow, "PWM Init OK");
+    UI_Logger_AddLine(&logWindow, "PWM Init OK");
 
-  
-    int countdownValue = 3;
-    int frameCount = 0;
-    char countdownText[16];
-    
-    UI_Label lblTitle, lblCount;
-    UI_Label_Init(&lblTitle, 10, 10, "Starting in:");
-    UI_Label_Init(&lblCount, 50, 30, countdownText);
+    Init_MPU();                               // MPU6050 初始化函数
 
-    for (;;) {
-        GFX_Clear();
+    UI_Logger_AddLine(&logWindow, "MPU6050 Init OK");
 
-        if (currentState == STATE_COUNTDOWN) {
-            // Update Countdown Logic
-            frameCount++;
-            if (frameCount >= 33) { // Approx 1 second (30ms * 33 = 990ms)
-                frameCount = 0;
-                countdownValue--;
-                if (countdownValue < 0) {
-                    currentState = STATE_CUBE;
-                }
-            }
-            
-            // Draw UI
-            sprintf(countdownText, "%d", countdownValue);
-            UI_DrawTree((UI_Widget*)&lblTitle, 0, 0);
-            UI_DrawTree((UI_Widget*)&lblCount, 0, 0);
-            
-            // Draw a simple box around the countdown
-            GFX_DrawRect(5, 5, 118, 54, GFX_COLOR_WHITE);
-            
-        } else if (currentState == STATE_CUBE) {
-            // 3D Logic
-            angleX += 0.05;
-            angleY += 0.03;
-            angleZ += 0.01;
-            DrawCube();
-            
-            // Optional: Show status overlay
-            // show();
-        } else if (currentState == STATE_STARTUP) {
-            // 显示日志窗口
-            UI_DrawTree((UI_Widget*)&logWindow, 0, 0);
-        }
+    Init_Widgets();
 
-        // Render
-        GFX_Update();
+    UI_Logger_AddLine(&logWindow, "Press Key to Start");
 
-        if (Key_Status()) {
-            currentState = STATE_COUNTDOWN;
-            char pwm_status[64];
-            sprintf(pwm_status, "PWM: %d, %d, %d, %d\r\n", 
-                    pwmDutyBuffer[0], pwmDutyBuffer[1], pwmDutyBuffer[2], pwmDutyBuffer[3]);
-            Write_USART1_Data(pwm_status, strlen(pwm_status));
-        }
-
-        delay_ms(30);  // 适当延时
-    }
+    Loop(&logWindow);
 }
