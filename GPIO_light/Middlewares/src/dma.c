@@ -23,8 +23,6 @@ void Init_DMA_For_USART1_RX(uint8_t* buffer, uint32_t bufferSize) {
 
     DMA_Init(DMA2_Stream2, &DMA_InitStructure);
 
-    // DMA_ITConfig(DMA2_Stream2, DMA_IT_TC, ENABLE);
-
     DMA_Cmd(DMA2_Stream2, ENABLE);
 }
 
@@ -50,8 +48,6 @@ void Init_DMA_For_USART1_TX(uint8_t* buffer) {
     DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
 
     DMA_Init(DMA2_Stream7, &DMA_InitStructure);
-
-    // DMA_ITConfig(DMA2_Stream7, DMA_IT_TC, ENABLE);
 }
 
 void Init_DMA_For_PWM_TIM3(uint16_t* buffer) {
@@ -111,39 +107,4 @@ void Init_DMA_For_I2C1_TX(uint8_t* buffer, uint32_t size) {
     // Enable DMA Transfer Complete Interrupt
     DMA_ITConfig(DMA1_Stream6, DMA_IT_TC, ENABLE);
     NVIC_EnableIRQ(DMA1_Stream6_IRQn);
-}
-
-void  Init_DMA_For_I2C2_RX(uint8_t* buffer, uint32_t size) {
-    DMA_InitTypeDef DMA_InitStructure;
-
-    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_DMA1, ENABLE);
-
-    DMA_DeInit(DMA1_Stream4);
-    while(DMA_GetCmdStatus(DMA1_Stream4) != DISABLE);
-
-    DMA_InitStructure.DMA_Channel = DMA_Channel_7; // I2C2_RX
-    DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&I2C2->DR;
-    DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)buffer;
-    DMA_InitStructure.DMA_DIR = DMA_DIR_PeripheralToMemory;
-    DMA_InitStructure.DMA_BufferSize = size;
-    DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
-    DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
-    DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Byte;
-    DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_Byte;
-    DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
-    DMA_InitStructure.DMA_Priority = DMA_Priority_High;
-    DMA_InitStructure.DMA_FIFOMode = DMA_FIFOMode_Disable;
-    DMA_InitStructure.DMA_FIFOThreshold = DMA_FIFOThreshold_Full;
-    DMA_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single;
-    DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
-    DMA_Init(DMA1_Stream4, &DMA_InitStructure);
-
-    DMA_ITConfig(DMA1_Stream4, DMA_IT_TC, ENABLE);
-
-    NVIC_InitTypeDef NVIC_InitStructure;
-    NVIC_InitStructure.NVIC_IRQChannel = DMA1_Stream4_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
-    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStructure);
 }

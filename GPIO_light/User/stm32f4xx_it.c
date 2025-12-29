@@ -221,19 +221,6 @@ void DMA1_Stream6_IRQHandler(void) {
     }
 }
 
-// void DMA1_Stream2_IRQHandler(void) {
-//     if(DMA_GetITStatus(DMA1_Stream2, DMA_IT_TCIF2)) {
-//         DMA_ClearITPendingBit(DMA1_Stream2, DMA_IT_TCIF2);
-
-//         I2C_DMACmd(I2C2, DISABLE);
-//         DMA_Cmd(DMA1_Stream2, DISABLE);
-
-//         I2C_AcknowledgeConfig(I2C2, DISABLE);
-//         I2C_GenerateSTOP(I2C2, ENABLE);
-
-//         mpuReadDone = 1;
-//     }
-// }
 
 /**
   * @brief  This function handles PPP interrupt request.
