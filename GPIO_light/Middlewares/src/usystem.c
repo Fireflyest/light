@@ -158,6 +158,52 @@ void UI_Cube_Draw(UI_Widget* widget) {
 }
 
 
+void System_Update_Task() {
+    static uint8_t keyTiming = 0;
+    static uint8_t lastRawStatus = KEY_STATE_RELEASED;
+    
+    // key handling with debounce
+    if (keyEnable == KEY_ENABLE) {
+        uint8_t currentRawStatus = !(GPIOA->IDR & GPIO_Pin_0);
+        if (currentRawStatus == lastRawStatus) {
+            if (++keyTiming >= KEY_DEBOUNCE_TIME) {
+                if (keyStatus != currentRawStatus && keyStatus == KEY_STATE_RELEASED) {
+                    keyPressCount++;
+                }
+                keyStatus = currentRawStatus;
+                keyTiming = KEY_DEBOUNCE_TIME;
+            }
+        } else {
+            keyTiming = 0;
+            lastRawStatus = currentRawStatus;
+        }
+    }
+    
+    // LED handling
+    static uint8_t ledTiming = 0;
+    if (ledToggleCount > 0) {
+        ledTiming++;
+        if (ledTiming >= LED_TOGGLE_INTERVAL) {
+            ledTiming = 0;
+
+            if (ledToggleCmd & 0x01) {
+              GPIOC->BSRRL = GPIO_Pin_13;
+            } else {
+              GPIOC->BSRRH = GPIO_Pin_13;
+            }
+
+            uint8_t lastBit = ledToggleCmd & 0x01;
+            ledToggleCmd = (ledToggleCmd >> 1) | (lastBit << 7);
+
+            ledToggleCount--;
+        }
+    } else {
+        ledTiming = LED_TOGGLE_INTERVAL; 
+    }
+
+    // mpu data read
+    Read_MPU_All();
+}
 
 
 void Loop() {
@@ -180,7 +226,8 @@ void Loop() {
             lastTime = now;
         }
 
-        Read_MPU_All();
+        // key led mpu update
+        System_Update_Task();
 
         uint8_t commandBuffer[RX_BUFFER_SIZE] = {0};
         uint16_t len = Read_Bluetooth_Command(commandBuffer);
@@ -196,140 +243,6 @@ void Loop() {
                 currentState = STATE_NONE;
             } else if (commandBuffer[0] == 'S') {
                 currentState = STATE_MPU;
-            } else if (commandBuffer[0] == 'X') {
-
-                uint8_t buf[14];
-                char dbg[64];
-
-                // 1) START
-                uint32_t toi = 0x1FFFF;
-                I2C_GenerateSTART(I2C2, ENABLE);
-                while(!I2C_CheckEvent(I2C2, I2C_EVENT_MASTER_MODE_SELECT) && --toi);
-                if(toi==0) { UI_Logger_AddLine(&logWindow, "I2C TIMEOUT0"); continue; }
-
-                // 2) ADDR (write) -> send register address
-                toi = 0x1FFFF;
-                I2C_Send7bitAddress(I2C2, MPU_ADDRESS, I2C_Direction_Transmitter);
-                while(!I2C_CheckEvent(I2C2, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED) && --toi);
-                if(toi==0) { UI_Logger_AddLine(&logWindow, "I2C TIMEOUT1"); continue; }
-
-                toi = 0x1FFFF;
-                I2C_SendData(I2C2, MPU_ACCEL_XOUT_H);
-                while(!I2C_CheckEvent(I2C2, I2C_EVENT_MASTER_BYTE_TRANSMITTED) && --toi);
-                if(toi==0) { UI_Logger_AddLine(&logWindow, "I2C TIMEOUT2"); continue; }
-
-                // 3) Re-START and set to receiver
-                toi = 0x1FFFF;
-                I2C_GenerateSTART(I2C2, ENABLE);
-                while(!I2C_CheckEvent(I2C2, I2C_EVENT_MASTER_MODE_SELECT) && --toi);
-                if(toi==0) { UI_Logger_AddLine(&logWindow, "I2C TIMEOUT3"); continue; }
-
-                toi = 0x1FFFF;
-                I2C_Send7bitAddress(I2C2, MPU_ADDRESS, I2C_Direction_Receiver);
-                while(!I2C_CheckEvent(I2C2, I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED) && --toi);
-                if(toi==0) { UI_Logger_AddLine(&logWindow, "I2C TIMEOUT4"); continue; }
-
-                // 4) Read 14 bytes with correct ACK/STOP timing
-                for (int i = 0; i < 14; ++i) {
-                    // For 14-byte read, disable ACK before reading byte index 12 (i==12),
-                    // then after reading idx 12 generate STOP so last byte is NACK'd by master.
-                    if (i == 12) {
-                        I2C_AcknowledgeConfig(I2C2, DISABLE);
-                    }
-
-                    toi = 0x1FFFF;
-                    while(!(I2C2->SR1 & I2C_SR1_RXNE) && --toi);
-                    if (toi == 0) {
-                        UI_Logger_AddLine(&logWindow, "I2C TIMEOUT5");
-                        // attempt to recover bus state
-                        I2C_GenerateSTOP(I2C2, ENABLE);
-                        I2C_AcknowledgeConfig(I2C2, ENABLE);
-                        break;
-                    }
-
-                    buf[i] = I2C_ReceiveData(I2C2);
-
-                    if (i == 12) {
-                        // after reading the 13th byte, generate STOP to finish transfer properly
-                        I2C_GenerateSTOP(I2C2, ENABLE);
-                    }
-                }
-
-                // restore ACK for future reads
-                I2C_AcknowledgeConfig(I2C2, ENABLE);
-
-                // 5) report accel values
-                snprintf(dbg, sizeof(dbg), "AX:%6d, AY:%6d, AZ:%6d",
-                         (int16_t)((buf[0]<<8)|buf[1]),
-                         (int16_t)((buf[2]<<8)|buf[3]),
-                         (int16_t)((buf[4]<<8)|buf[5]));
-                Write_USART1_Data((uint8_t*)dbg, strlen(dbg));
-            } else if (commandBuffer[0] == 'M') {
-
-                // Read_MPU_All();
-
-                uint8_t regs[] = {MPU_PWR_MGMT_1, MPU_SMPLRT_DIV, MPU_CONFIG, MPU_GYRO_CONFIG, MPU_ACCEL_CONFIG};
-                uint8_t whoami = 0xFF;
-                uint8_t buf[14];
-                uint8_t values[5];
-                uint8_t timeout = 0xFF;
-                char dbg[64];
-
-                for(int i = 0; i < 5; i++) {
-                    uint32_t toi;
-
-                    // 1. 写寄存器地址 (写操作单步超时独立处理)
-                    toi = 0xFFFF;
-                    I2C_GenerateSTART(I2C2, ENABLE);
-                    while(!I2C_CheckEvent(I2C2, I2C_EVENT_MASTER_MODE_SELECT) && --toi);
-                    if(toi == 0) { UI_Logger_AddLine(&logWindow, "I2C TIMEOUT START"); values[i]=0xFF; continue; }
-
-                    toi = 0xFFFF;
-                    I2C_Send7bitAddress(I2C2, MPU_ADDRESS, I2C_Direction_Transmitter);
-                    while(!I2C_CheckEvent(I2C2, I2C_EVENT_MASTER_TRANSMITTER_MODE_SELECTED) && --toi);
-                    if(toi == 0) { UI_Logger_AddLine(&logWindow, "I2C TIMEOUT ADDR-TX"); values[i]=0xFF; continue;}
-
-                    toi = 0xFFFF;
-                    I2C_SendData(I2C2, regs[i]);
-                    while(!I2C_CheckEvent(I2C2, I2C_EVENT_MASTER_BYTE_TRANSMITTED) && --toi);
-                    if(toi == 0) { UI_Logger_AddLine(&logWindow, "I2C TIMEOUT TX-BYTE"); values[i]=0xFF; continue; }
-
-                    // 2. 重复起始，准备读取 1 字节（单字节读：在发送从地址前关闭 ACK，以产生 NACK）
-                    toi = 0xFFFF;
-                    I2C_GenerateSTART(I2C2, ENABLE);
-                    while(!I2C_CheckEvent(I2C2, I2C_EVENT_MASTER_MODE_SELECT) && --toi);
-                    if(toi == 0) { UI_Logger_AddLine(&logWindow, "I2C TIMEOUT RSTART"); values[i]=0xFF; continue; }
-
-                    // 对单字节读取：在地址为接收方向前，先关闭 ACK（保证接收的单字节被 NACK）
-                    I2C_AcknowledgeConfig(I2C2, DISABLE);
-
-                    toi = 0xFFFF;
-                    I2C_Send7bitAddress(I2C2, MPU_ADDRESS, I2C_Direction_Receiver);
-                    while(!I2C_CheckEvent(I2C2, I2C_EVENT_MASTER_RECEIVER_MODE_SELECTED) && --toi);
-                    if(toi == 0) { UI_Logger_AddLine(&logWindow, "I2C TIMEOUT ADDR-RX"); values[i]=0xFF; 
-                        // 恢复 ACK 以免影响后续多字节读取
-                        I2C_AcknowledgeConfig(I2C2, ENABLE);
-                        continue;
-                    }
-
-                    // 等待数据到达并读取
-                    toi = 0xFFFF;
-                    while(!(I2C2->SR1 & I2C_SR1_RXNE) && --toi);
-                    if(toi == 0) { UI_Logger_AddLine(&logWindow, "I2C TIMEOUT RXNE"); values[i]=0xFF;
-                        I2C_GenerateSTOP(I2C2, ENABLE);
-                        I2C_AcknowledgeConfig(I2C2, ENABLE);
-                        continue;
-                    }
-                    values[i] = I2C_ReceiveData(I2C2);
-
-                    // 生成 STOP 并恢复 ACK（为后续多字节或下一次单字节读取准备）
-                    I2C_GenerateSTOP(I2C2, ENABLE);
-                    I2C_AcknowledgeConfig(I2C2, ENABLE);
-                }
-
-                snprintf(dbg, sizeof(dbg), "PWR:%02X DIV:%02X CFG:%02X GYR:%02X ACC:%02X\r\n",
-                        values[0], values[1], values[2], values[3], values[4]);
-                Write_USART1_Data((uint8_t*)dbg, strlen(dbg));
             } else {
                 pwmDutyBuffer[0] = Map_Percent_To_Real(atoi((char*)commandBuffer));
                 pwmDutyBuffer[1] = Map_Percent_To_Real(atoi((char*)commandBuffer));
@@ -342,12 +255,9 @@ void Loop() {
         }
 
         UI_DrawTree(widgets[currentState], 0, 0);
-
         GFX_Update();
 
-
-
-        if (Key_Status()) {
+        if (Key_PressConsume()) {
             char pwm_status[64];
             sprintf(pwm_status, "PWM: %d, %d, %d, %d\r\n", 
                     TIM3->CCR1, TIM3->CCR2, TIM3->CCR3, TIM3->CCR4);

@@ -21,11 +21,14 @@ extern UI_Logger logWindow;
 void delay_ms(__IO uint32_t nTime);
 
 void Init_USystem();
+
 void Init_Display();
 void Init_USART(uint16_t baudrate);
 void Init_PWM(uint16_t period, uint16_t prescaler);
 void Init_MPU();
 void Init_Widgets();
+
+void System_Update_Task();
 
 void Loop();
 

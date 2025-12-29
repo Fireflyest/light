@@ -3,7 +3,7 @@
 
 # include "stm32f4xx.h"
 
-# define LED_TOGGLE_INTERVAL            100
+# define LED_TOGGLE_INTERVAL            3
 
 # define LED_TOGGLE_CMD_ALL_ON          0b11111111
 # define LED_TOGGLE_CMD_ALL_OFF         0b00000000

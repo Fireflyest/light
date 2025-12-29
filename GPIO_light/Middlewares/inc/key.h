@@ -9,13 +9,15 @@
 # define KEY_STATE_RELEASED    0
 # define KEY_STATE_PRESSED     1
 
-# define KEY_DEBOUNCE_TIME    20
+# define KEY_DEBOUNCE_TIME    1
 
 extern __IO uint8_t keyEnable;
 extern __IO uint8_t keyStatus;
+extern __IO uint8_t keyPressCount;
 
 void Init_Key(void);
 uint8_t Key_Status();
+uint8_t Key_PressConsume();
 
 #endif
 

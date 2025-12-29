@@ -143,45 +143,6 @@ void PendSV_Handler(void)
 void SysTick_Handler(void)
 {
     sysTick++;
-
-    static uint8_t keyTiming = 0;
-    static uint8_t lastRawStatus = KEY_STATE_RELEASED;
-    
-    if (keyEnable == KEY_ENABLE) {
-        uint8_t currentRawStatus = !(GPIOA->IDR & GPIO_Pin_0);
-        if (currentRawStatus == lastRawStatus) {
-            if (++keyTiming >= KEY_DEBOUNCE_TIME) {
-                keyStatus = currentRawStatus;
-                keyTiming = KEY_DEBOUNCE_TIME; 
-            }
-        } else {
-            keyTiming = 0;
-            lastRawStatus = currentRawStatus;
-        }
-    }
-    
-
-    
-    static uint8_t ledTiming = 0;
-    if (ledToggleCount > 0) {
-        ledTiming++;
-        if (ledTiming >= LED_TOGGLE_INTERVAL) {
-            ledTiming = 0;
-
-            if (ledToggleCmd & 0x01) {
-              GPIOC->BSRRL = GPIO_Pin_13;
-            } else {
-              GPIOC->BSRRH = GPIO_Pin_13;
-            }
-
-            uint8_t lastBit = ledToggleCmd & 0x01;
-            ledToggleCmd = (ledToggleCmd >> 1) | (lastBit << 7);
-
-            ledToggleCount--;
-        }
-    } else {
-        ledTiming = LED_TOGGLE_INTERVAL; 
-    }
 }
 
 /******************************************************************************/

@@ -6,6 +6,7 @@
 
 __IO uint8_t keyStatus = KEY_STATE_RELEASED;
 __IO uint8_t keyEnable = KEY_DISABLE;
+__IO uint8_t keyPressCount = 0;
 
 void Init_Key(void) {
     GPIO_InitTypeDef GPIO_InitStructure;
@@ -23,4 +24,12 @@ void Init_Key(void) {
 
 uint8_t Key_Status() {
     return keyStatus;
+}
+
+uint8_t Key_PressConsume() {
+    if (keyPressCount > 0) {
+        keyPressCount--;
+        return 1;
+    }
+    return 0;
 }
