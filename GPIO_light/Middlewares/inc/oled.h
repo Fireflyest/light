@@ -7,6 +7,9 @@
 #define OLED_WIDTH  128
 #define OLED_HEIGHT 64
 
+#define COMMUICATION_TYPE_I2C
+// #define COMMUNICATION_TYPE_SPI
+
 // Hardware Initialization
 void Init_OLED_Hardware(void);
 

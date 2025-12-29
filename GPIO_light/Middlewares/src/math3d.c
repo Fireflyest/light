@@ -37,14 +37,79 @@ static float cosf(float x) {
     return sinf(x + 1.57079632f);
 }
 
-Point2D Math3D_Project(Point3D p, float focalLength, float cameraZ) {
-    Point2D p2d;
-    float scale = focalLength / (p.z + cameraZ);
-    
-    p2d.x = (int)(p.x * scale) + GFX_WIDTH / 2;
-    p2d.y = (int)(p.y * scale) + GFX_HEIGHT / 2;
-    
-    return p2d;
+static float sqrtf(float x) {
+    if (x <= 0.0f) return 0.0f;
+
+    union { uint32_t i; float f; } u;
+    u.f = x;
+
+    /* initial guess for 1/sqrt(x) */
+    u.i = 0x5f3759df - (u.i >> 1);
+    float y = u.f;
+
+    /* two Newton-Raphson iterations to refine y = 1/sqrt(x) */
+    y = y * (1.5f - 0.5f * x * y * y);
+    y = y * (1.5f - 0.5f * x * y * y);
+
+    /* sqrt(x) = x * (1/sqrt(x)) */
+    return x * y;
+}
+
+static inline int round_to_int(float v) {
+    return (int)(v >= 0.0f ? v + 0.5f : v - 0.5f);
+}
+
+void Math3D_Project(Point3D* p, float focalLength, float cameraZ) {
+    float scale = focalLength / (p->z + cameraZ);
+    p->x = round_to_int(p->x * scale) + OLED_WIDTH / 2;
+    p->y = round_to_int(p->y * scale) + OLED_HEIGHT / 2;
+}
+
+Quaternion Math3D_QuatFromEuler(float yaw, float pitch, float roll) {
+    float cy = cosf(yaw * 0.5f), sy = sinf(yaw * 0.5f);
+    float cp = cosf(pitch * 0.5f), sp = sinf(pitch * 0.5f);
+    float cr = cosf(roll * 0.5f), sr = sinf(roll * 0.5f);
+    Quaternion q;
+    q.w = cr*cp*cy + sr*sp*sy;
+    q.x = sr*cp*cy - cr*sp*sy;
+    q.y = cr*sp*cy + sr*cp*sy;
+    q.z = cr*cp*sy - sr*sp*cy;
+    return q;
+}
+
+Quaternion Math3D_QuatFromAxisAngle(Vector3D axis, float angle) {
+    float s = sinf(angle * 0.5f);
+    Quaternion q;
+    q.w = cosf(angle * 0.5f);
+    q.x = axis.x * s;
+    q.y = axis.y * s;
+    q.z = axis.z * s;
+    return q;
+}
+
+Quaternion Math3D_QuatNormalize(Quaternion q) {
+    float n = sqrtf(q.w*q.w + q.x*q.x + q.y*q.y + q.z*q.z);
+    if (n <= 0.0f) return (Quaternion){1,0,0,0};
+    float inv = 1.0f / n;
+    q.w *= inv; q.x *= inv; q.y *= inv; q.z *= inv;
+    return q;
+}
+
+// Fast rotate vector p by quaternion q (uses optimized cross-product form)
+Point3D Math3D_RotateByQuat(Point3D v, Quaternion q) {
+    // t = 2 * cross(q_vec, v)
+    float tx = 2.0f * (q.y * v.z - q.z * v.y);
+    float ty = 2.0f * (q.z * v.x - q.x * v.z);
+    float tz = 2.0f * (q.x * v.y - q.y * v.x);
+    // v' = v + q.w * t + cross(q_vec, t)
+    float cx = q.y * tz - q.z * ty;
+    float cy = q.z * tx - q.x * tz;
+    float cz = q.x * ty - q.y * tx;
+    Point3D out;
+    out.x = v.x + q.w * tx + cx;
+    out.y = v.y + q.w * ty + cy;
+    out.z = v.z + q.w * tz + cz;
+    return out;
 }
 
 Point3D Math3D_RotateX(Point3D p, float angle) {

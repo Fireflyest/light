@@ -56,8 +56,8 @@ project:
         - file: ./Middlewares/src/math3d.c
         - file: ./Middlewares/inc/ui.h
         - file: ./Middlewares/src/ui.c
-        - file: ./Middlewares/inc/i2coled.h
-        - file: ./Middlewares/src/i2coled.c
+        - file: ./Middlewares/inc/oled.h
+        - file: ./Middlewares/src/oled.c
         - file: ./Middlewares/inc/mpu.h
         - file: ./Middlewares/src/mpu.c
         - file: ./Middlewares/display/bmp.h

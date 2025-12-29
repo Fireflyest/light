@@ -88,17 +88,6 @@ uint16_t Read_Bluetooth_Command(uint8_t* buffer) {
 }
 
 
-Point3D cubeVertices[8] = {
-    {-10, -10, -10}, {10, -10, -10}, {10, 10, -10}, {-10, 10, -10},
-    {-10, -10, 10}, {10, -10, 10}, {10, 10, 10}, {-10, 10, 10}
-};
-
-int cubeEdges[12][2] = {
-    {0, 1}, {1, 2}, {2, 3}, {3, 0}, // Front face
-    {4, 5}, {5, 6}, {6, 7}, {7, 4}, // Back face
-    {0, 4}, {1, 5}, {2, 6}, {3, 7}  // Connecting lines
-};
-
 float angleX = 0, angleY = 0, angleZ = 0;
 
 void UI_MPU_Draw(UI_Widget* widget) {
@@ -132,26 +121,24 @@ void UI_MPU_Draw(UI_Widget* widget) {
 }
 
 void UI_Cube_Draw(UI_Widget* widget) {
-    Point2D projected[8];
-    
-    for(int i=0; i<8; i++) {
-        Point3D p = cubeVertices[i];
-        p = Math3D_RotateX(p, angleX);
-        p = Math3D_RotateY(p, angleY);
-        p = Math3D_RotateZ(p, angleZ);
-        projected[i] = Math3D_Project(p, 64, 40); // Focal length 64, Camera Z 40
-    }
-    
-    for(int i=0; i<12; i++) {
-        Point2D p1 = projected[cubeEdges[i][0]];
-        Point2D p2 = projected[cubeEdges[i][1]];
-        GFX_DrawLine(p1.x, p1.y, p2.x, p2.y, GFX_COLOR_WHITE);
-    }
+    Point3D center = { 0.0f, 0.0f, -20.0f };    // closer to camera (try -20, -40, ...)
+    Vector3D halfExtent = { 20.0f, 20.0f, 20.0f }; // larger half-size for clearer view
 
-    angleX += 0.02f;
-    angleY += 0.015f;
-    angleZ += 0.01f;
+    // Build quaternion
+    // Math3D_QuatFromEuler(yaw, pitch, roll) -- currently yaw=Z, pitch=Y, roll=X in our code
+    // If rotation looks wrong, try swapping the order below (see alternative commented)
+    Quaternion q = Math3D_QuatFromEuler(angleZ, angleY, angleX); // current mapping
+    // Quaternion q = Math3D_QuatFromEuler(angleX, angleY, angleZ); // try if rotation axes swapped
+    q = Math3D_QuatNormalize(q);
 
+    GFX3D_DrawCube(&center, &halfExtent, &q, GFX_COLOR_WHITE);
+
+    // animate rotation (tweak speeds if needed)
+    angleX += 0.04f;
+    angleY += 0.03f;
+    angleZ += 0.02f;
+
+    // show FPS
     char fpsLine[20];
     snprintf(fpsLine, sizeof(fpsLine), "FPS: %d", currentFps);
     GFX_DrawString(0, 0, fpsLine, GFX_COLOR_WHITE);

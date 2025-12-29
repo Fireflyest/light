@@ -1,4 +1,4 @@
-#include "i2coled.h"
+#include "oled.h"
 #include "dma.h" // Assumes Init_DMA_For_I2C1_TX is defined here
 
 #define OLED_ADDRESS 0x78

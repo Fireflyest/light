@@ -2,10 +2,8 @@
 #define __GFX_H
 
 #include "stm32f4xx.h"
-
-// Screen resolution
-#define GFX_WIDTH  128
-#define GFX_HEIGHT 64
+#include "oled.h"
+#include "math3d.h"
 
 // Colors
 typedef enum {
@@ -15,7 +13,7 @@ typedef enum {
 } GFX_Color;
 
 // FrameBuffer
-extern uint8_t GFX_Buffer[GFX_WIDTH * GFX_HEIGHT / 8];
+extern uint8_t GFX_Buffer[OLED_WIDTH * OLED_HEIGHT / 8];
 
 // Initialization
 void Init_GFX(void);
@@ -30,5 +28,14 @@ void GFX_FillRect(int x, int y, int w, int h, GFX_Color color);
 void GFX_DrawCircle(int x0, int y0, int r, GFX_Color color);
 void GFX_DrawChar(int x, int y, char c, GFX_Color color);
 void GFX_DrawString(int x, int y, const char* str, GFX_Color color);
+void GFX_DrawBitmap(int x, int y, const uint8_t* bitmap, int w, int h, GFX_Color color);
+
+// 3d
+void GFX3D_DrawPixel(Point3D* p, GFX_Color color);
+void GFX3D_DrawLine(Point3D* p1, Point3D* p2, GFX_Color color);
+void GFX3D_DrawRect(Point3D* p, Vector3D* v, GFX_Color color);
+void GFX3D_FillRect(Point3D* p, Vector3D* v, GFX_Color color);
+void GFX3D_DrawCube(Point3D* center, Vector3D* v, Quaternion* q, GFX_Color color);
+void GFX3D_DrawSphere(Point3D* center, Vector3D* v, GFX_Color color);
 
 #endif /* __GFX_H */
