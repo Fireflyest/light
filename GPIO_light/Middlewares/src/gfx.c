@@ -19,21 +19,26 @@ void GFX_Clear(void) {
     memset(GFX_Buffer, 0, sizeof(GFX_Buffer));
 }
 
-void GFX_Update(void) {
-    // Update OLED page by page (8 pages)
-    // This logic is required for SH1106 / SSD1306 in Page Mode
-    
+uint8_t GFX_Update(void) {
+    #ifndef SYNC_FPS_TO_SCREEN_REFRESH
+    if (OLED_IsDMABusy()) {
+        return 0; // Previous DMA transfer still in progress
+    }
+    #endif
+
     for (int i = 0; i < 8; i++) {
         // Calculate pointer to the start of the current page in the buffer
         uint8_t* pPageData = GFX_Buffer + (i * OLED_WIDTH);
         
         // Send this page using the hardware driver
         OLED_UpdatePage_DMA(i, pPageData);
-        
-        // Wait for DMA to finish this page before starting the next
-        // (Because I2C bus is shared and we need to send commands for the next page)
+
+        #ifdef SYNC_FPS_TO_SCREEN_REFRESH
+        // Wait for DMA to complete before proceeding to next page
         while (OLED_IsDMABusy());
+        #endif
     }
+    return 1; // Update started
 }
 
 void GFX_DrawPixel(int x, int y, GFX_Color color) {
@@ -173,69 +178,6 @@ void GFX3D_FillRect(Point3D* p, Vector3D* v, GFX_Color color) {
 }
 
 void GFX3D_DrawCube(Point3D* center, Vector3D* v, Quaternion* q, GFX_Color color) {
-    // // interpret v as half-extent along local axes, apply optional rotation q
-    // Point3D corners[8];
-    // float cx = center->x, cy = center->y, cz = center->z;
-    // float hx = v->x, hy = v->y, hz = v->z;
-
-    // // basis half-vectors
-    // Point3D ex = { hx, 0.0f, 0.0f };
-    // Point3D ey = { 0.0f, hy, 0.0f };
-    // Point3D ez = { 0.0f, 0.0f, hz };
-
-    // Point3D rex, rey, rez;
-    // if (q) {
-    //     // fast: rotate three basis half-vectors (3 rotations instead of 8)
-    //     rex = Math3D_RotateByQuat(ex, *q);
-    //     rey = Math3D_RotateByQuat(ey, *q);
-    //     rez = Math3D_RotateByQuat(ez, *q);
-    // } else {
-    //     rex = ex; rey = ey; rez = ez;
-    // }
-
-    // const int signs[8][3] = {
-    //     {-1,-1,-1}, {1,-1,-1}, {1,1,-1}, {-1,1,-1},
-    //     {-1,-1,1},  {1,-1,1},  {1,1,1},  {-1,1,1}
-    // };
-
-    // // build 8 corners by combination ±rex ±rey ±rez
-    // for (int i = 0; i < 8; ++i) {
-    //     int sx = signs[i][0];
-    //     int sy = signs[i][1];
-    //     int sz = signs[i][2];
-    //     corners[i].x = cx + sx * rex.x + sy * rey.x + sz * rez.x;
-    //     corners[i].y = cy + sx * rex.y + sy * rey.y + sz * rez.y;
-    //     corners[i].z = cz + sx * rex.z + sy * rey.z + sz * rez.z;
-    // }
-
-    // // quick cull: if all corners are behind camera, skip
-    // float camz = CAMERA_Z_DEFAULT;
-    // float minz = corners[0].z;
-    // for (int i = 1; i < 8; ++i) if (corners[i].z < minz) minz = corners[i].z;
-    // if (minz + camz <= 0.0f) return;
-
-    // // project corners and draw edges
-    // int px[8], py[8];
-    // for (int i = 0; i < 8; ++i) {
-    //     Point3D tmp = corners[i];
-    //     Math3D_Project(&tmp, FOCAL_LENGTH_DEFAULT, camz);
-    //     px[i] = (int)tmp.x;
-    //     py[i] = (int)tmp.y;
-    // }
-
-    // // edges: bottom, top, verticals
-    // const int edges[12][2] = {
-    //     {0,1},{1,2},{2,3},{3,0},
-    //     {4,5},{5,6},{6,7},{7,4},
-    //     {0,4},{1,5},{2,6},{3,7}
-    // };
-    // for (int e = 0; e < 12; ++e) {
-    //     GFX_DrawLine(px[edges[e][0]], py[edges[e][0]],
-    //                  px[edges[e][1]], py[edges[e][1]],
-    //                  color);
-    // }
-
-
     Point3D corners[8];
     float cx = center->x, cy = center->y, cz = center->z;
     float hx = v->x, hy = v->y, hz = v->z;

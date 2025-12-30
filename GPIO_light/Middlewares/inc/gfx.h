@@ -5,6 +5,8 @@
 #include "oled.h"
 #include "math3d.h"
 
+#define SYNC_FPS_TO_SCREEN_REFRESH
+
 // Colors
 typedef enum {
     GFX_COLOR_BLACK = 0,
@@ -20,7 +22,7 @@ void Init_GFX(void);
 
 // Core drawing functions
 void GFX_Clear(void);
-void GFX_Update(void);
+uint8_t GFX_Update(void);
 void GFX_DrawPixel(int x, int y, GFX_Color color);
 void GFX_DrawLine(int x0, int y0, int x1, int y1, GFX_Color color);
 void GFX_DrawRect(int x, int y, int w, int h, GFX_Color color);
