@@ -6,7 +6,8 @@
 
 __IO uint16_t sysTick;
 UI_Logger logWindow;
-uint16_t currentFps = 0;
+uint16_t screenFps = 0;
+uint16_t logicFps = 0;
 
 typedef enum { 
     STATE_NONE,
@@ -171,10 +172,15 @@ void UI_Cube_Draw(UI_Widget* widget) {
     angleY += 0.03f;
     angleZ += 0.02f;
 
-    // show FPS
+    // show logic FPS
     char fpsLine[20];
-    snprintf(fpsLine, sizeof(fpsLine), "FPS: %d", currentFps);
+    snprintf(fpsLine, sizeof(fpsLine), "FPS: %d", logicFps);
     GFX_DrawString(0, 0, fpsLine, GFX_COLOR_WHITE);
+    // show screen FPS
+    #ifndef SYNC_FPS_TO_SCREEN_REFRESH
+    snprintf(fpsLine, sizeof(fpsLine), "SFPS: %d", screenFps);
+    GFX_DrawString(0, 10, fpsLine, GFX_COLOR_WHITE);
+    #endif
 }
 
 
@@ -228,35 +234,27 @@ void System_Update_Task() {
 
 
 void Loop() {
+    int logicCounter = 0;    // 程序循环计数
+    int displayCounter = 0;  // 屏幕刷新计数
+    int lastTime = sysTick;
 
-    int fpsCounter = 0;
-    int lastTime = 0;
-
-    // const uint16_t TARGET_FRAME_TIME = 200; // 5 FPS, 200ms per frame
-    const uint16_t TARGET_FRAME_TIME = 20; // 50 FPS, 20ms per frame
-    // const uint16_t TARGET_FRAME_TIME = 33; // 30 FPS, 33ms per frame
+    const uint16_t TARGET_FRAME_TIME = 20; // 50 FPS 目标逻辑频率
     uint16_t frameStart;
+    
     while (1) {
         frameStart = sysTick;
-        GFX_Clear();
+        logicCounter++; // 每次循环增加程序 FPS 计数
 
-        int now = sysTick;
-        fpsCounter++;
-        if (now - lastTime >= 1000) {
-            currentFps = fpsCounter;
-            fpsCounter = 0;
-            lastTime = now;
-        }
-
-        // key led mpu update
+        // 1. 核心系统任务更新 (按程序频率运行)
         System_Update_Task();
 
+        // 2. 蓝牙命令处理
         uint8_t commandBuffer[RX_BUFFER_SIZE] = {0};
         uint16_t len = Read_Bluetooth_Command(commandBuffer);
 
         if (len > 0) {
             UI_Logger_AddLine(&logWindow, (char*)commandBuffer);
-
+            // ...existing command handling code...
             if (commandBuffer[0] == 'H') {
                 currentState = STATE_HOME;
             } else if (commandBuffer[0] == 'C') {
@@ -276,8 +274,25 @@ void Loop() {
             }
         }
 
+        // 3. 渲染与屏幕刷新
+        GFX_Clear();
         UI_DrawTree(widgets[currentState], 0, 0);
-        GFX_Update();
+        
+        // 只有当 GFX_Update 成功启动刷新时，updateStarted 才为 1
+        uint8_t updateStarted = GFX_Update();
+        if (updateStarted) {
+            displayCounter++; 
+        }
+
+        // 4. 每秒统计一次 FPS
+        int now = sysTick;
+        if (now - lastTime >= 1000) {
+            screenFps = displayCounter; // 这里的 screenFps 现在代表屏幕实际刷新率
+            logicFps = logicCounter;   // logicFps 代表程序逻辑频率
+            displayCounter = 0;
+            logicCounter = 0;
+            lastTime = now;
+        }
 
         if (Key_PressConsume()) {
             char pwm_status[64];
@@ -292,4 +307,3 @@ void Loop() {
         }
     }
 }
-
