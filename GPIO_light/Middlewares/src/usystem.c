@@ -19,7 +19,7 @@ AppState currentState;
 UI_Widget* widgets[16];
 
 
-static void UI_MPU_Draw(UI_Widget* widget);
+static void UI_MPU_BMP_Draw(UI_Widget* widget);
 static void UI_Cube_Draw(UI_Widget* widget);
 
 
@@ -52,7 +52,7 @@ void Init_PWM(uint16_t period, uint16_t prescaler) {
 }
 
 void Init_MPU() {
-    Init_MPU_Hardware();
+    Init_MPU_BMP_Hardware();
 }
 
 void Init_Widgets() {
@@ -61,7 +61,7 @@ void Init_Widgets() {
 
     static UI_Window mpuWindow;
     UI_Window_Init(&mpuWindow, 0, 0, 128, 64);
-    mpuWindow.base.draw = UI_MPU_Draw;
+    mpuWindow.base.draw = UI_MPU_BMP_Draw;
     widgets[STATE_MPU] = (UI_Widget*)&mpuWindow;
 
     static UI_Window homeWindow;
@@ -90,7 +90,7 @@ uint16_t Read_Bluetooth_Command(uint8_t* buffer) {
 
 float angleX = 0, angleY = 0, angleZ = 0;
 
-void UI_MPU_Draw(UI_Widget* widget) {
+void UI_MPU_BMP_Draw(UI_Widget* widget) {
     char line[40];
     int x = widget->x + 2;
     int y = widget->y + 2;
@@ -105,7 +105,10 @@ void UI_MPU_Draw(UI_Widget* widget) {
     int16_t gz = (int16_t)((mpuDataBuffer[12] << 8) | mpuDataBuffer[13]);
 
     int16_t tempRaw = (int16_t)((mpuDataBuffer[6] << 8) | mpuDataBuffer[7]);
-    float temp = (float)tempRaw / 333.87f + 21.0f;
+    float tempC = (float)tempRaw / 333.87f + 21.0f;
+
+    int16_t p1 = (int16_t)((bmpDataBuffer[0] << 12) | (bmpDataBuffer[1] << 4) | (bmpDataBuffer[2] >> 4));
+    int16_t p2 = (int16_t)((bmpDataBuffer[3] << 12) | (bmpDataBuffer[4] << 4) | (bmpDataBuffer[5] >> 4));
 
     snprintf(line, sizeof(line), "AX %6d GX %6d", (int)ax, (int)gx);
     GFX_DrawString(x, y + 0 * lh, line, GFX_COLOR_WHITE);
@@ -115,9 +118,39 @@ void UI_MPU_Draw(UI_Widget* widget) {
 
     snprintf(line, sizeof(line), "AZ %6d GZ %6d", (int)az, (int)gz);
     GFX_DrawString(x, y + 2 * lh, line, GFX_COLOR_WHITE);
-
-    snprintf(line, sizeof(line), "T %5.1fC", (double)temp);
+    
+    {
+        float at = tempC < 0.0f ? -tempC : tempC;
+        int ti = (int)at;                       // integer part
+        int tf = (int)(at * 10.0f) % 10;         // one decimal
+        if (tempC < 0.0f) {
+            snprintf(line, sizeof(line), "T -%d.%dC", ti, tf);
+        } else {
+            snprintf(line, sizeof(line), "T %d.%dC", ti, tf);
+        }
+    }
     GFX_DrawString(x, y + 3 * lh, line, GFX_COLOR_WHITE);
+
+
+    {
+        float at = temperature < 0.0f ? -temperature : temperature;
+        int t_i = (int)at;
+        int t_d = (int)(at * 10.0f) % 10;
+
+        float ab = barometricPressure < 0.0f ? -barometricPressure : barometricPressure;
+        int b_i = (int)ab;
+        int b_d = (int)(ab * 10.0f) % 10;
+        snprintf(line, sizeof(line), "T %3d.%1d B %3d.%1d", t_i, t_d, b_i, b_d);
+    }
+    GFX_DrawString(x, y + 4 * lh, line, GFX_COLOR_WHITE);
+
+    {
+        float aa = altitude < 0.0f ? -altitude : altitude;
+        int a_i = (int)aa;
+        int a_d = (int)(aa * 10.0f) % 10;
+        snprintf(line, sizeof(line), "Alt %3d.%1d m", a_i, a_d);
+    }
+    GFX_DrawString(x, y + 5 * lh, line, GFX_COLOR_WHITE);
 }
 
 void UI_Cube_Draw(UI_Widget* widget) {
@@ -190,6 +223,7 @@ void System_Update_Task() {
 
     // mpu data read
     Read_MPU_All();
+    Read_BMP_All();
 }
 
 
@@ -198,6 +232,7 @@ void Loop() {
     int fpsCounter = 0;
     int lastTime = 0;
 
+    // const uint16_t TARGET_FRAME_TIME = 200; // 5 FPS, 200ms per frame
     const uint16_t TARGET_FRAME_TIME = 20; // 50 FPS, 20ms per frame
     // const uint16_t TARGET_FRAME_TIME = 33; // 30 FPS, 33ms per frame
     uint16_t frameStart;

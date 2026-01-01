@@ -29,16 +29,32 @@
 
 #define MPU_ADDRESS         0xD0
 
+
+#define BMP_CTRL_MEAS      0xF4
+#define BMP_CONFIG         0xF5
+
 // #define COMMUNICATION_TYPE_I2C
 #define COMMUNICATION_TYPE_SPI
 
-extern __IO uint8_t mpuReadDone;
+#define USE_BMP
+
+#define SEA_LEVEL_PRESSURE_HPA    1013.25f
+
 extern uint8_t mpuDataBuffer[14];
 
+extern uint8_t bmpDataBuffer[6];
+extern float temperature;
+extern float barometricPressure;
+extern float altitude;
 
-void Init_MPU_Hardware(void);
+
+void Init_MPU_BMP_Hardware(void);
 
 void Write_MPU_Register(uint8_t reg, uint8_t data);
+void Write_BMP_Register(uint8_t reg, uint8_t data);
+uint8_t Read_MPU_Register(uint8_t reg);
+uint8_t Read_BMP_Register(uint8_t reg);
 void Read_MPU_All();
+void Read_BMP_All();
 
 #endif /* __MPU_H */

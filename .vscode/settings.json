@@ -1,34 +1,14 @@
 {
-    "files.associations": {
-        "stm32f4xx.h": "c",
-        "rte_components.h": "c",
-        "main.h": "c",
-        "stm32f401xc.h": "c",
-        "gpio.h": "c",
-        "stm32f4xx_conf.h": "c",
-        "delay.h": "c",
-        "system_stm32f4xx.h": "c",
-        "stdint.h": "c",
-        "stm32f4xx_adc.h": "c",
-        "oledfont.h": "c",
-        "oled.h": "c",
-        "font.h": "c",
-        "pipe.h": "c",
-        "labels.h": "c",
-        "render.h": "c",
-        "math.h": "c",
-        "ui.h": "c",
-        "bmp.h": "c",
-        "string.h": "c",
-        "stdlib.h": "c"
-    },
+  
     "debug.hideSlowPreLaunchWarning": true,
     "debug.showInStatusBar": "never",
     "C_Cpp.default.includePath": [
         "${workspaceFolder}/**",
-        "C:/Users/Lenovo/AppData/Local/arm/packs/ARM/CMSIS/6.2.0/CMSIS/Core/Include"
+        "C:/Users/Lenovo/AppData/Local/arm/packs/ARM/CMSIS/6.2.0/CMSIS/Core/Include",
+        "C:/Users/Lenovo/AppData/Local/arm/packs/ARM/CMSIS-DSP/1.16.2/Include"
     ],
     "C_Cpp.default.compilerPath": "G:/libraries/arm-gnu-toolchain-15.2.rel1/bin/arm-none-eabi-gcc.exe",
     "C_Cpp.default.intelliSenseMode": "windows-gcc-arm",
-    "cmsis-csolution.autoDebugLaunch": false
+    "cmsis-csolution.autoDebugLaunch": false,
+    "cmake.ignoreCMakeListsMissing": true
 }

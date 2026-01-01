@@ -1,6 +1,7 @@
 #include "math3d.h"
 #include "gfx.h" // For screen center
 
+
 // Simple approximation to avoid linking libm
 static float sinf(float x) {
     const float PI = 3.14159265f;
