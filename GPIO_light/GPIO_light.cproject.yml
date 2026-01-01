@@ -3,6 +3,11 @@ project:
 
   processor:
     fpu: sp
+
+  misc:
+    - for-compiler: GCC
+      Library:
+        - m
   
   groups:
     - group: STM32F4xx StdPeriph Driver Files
