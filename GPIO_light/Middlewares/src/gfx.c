@@ -35,7 +35,8 @@ uint8_t GFX_Update(void) {
 
         #ifdef SYNC_FPS_TO_SCREEN_REFRESH
         // Wait for DMA to complete before proceeding to next page
-        while (OLED_IsDMABusy());
+        uint8_t timeout;
+        for (timeout = 0xFF; timeout > 0 && OLED_IsDMABusy(); timeout--);
         #endif
     }
     return 1; // Update started

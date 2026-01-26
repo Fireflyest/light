@@ -49,7 +49,7 @@ static void I2C_Configuration(void) {
     I2C_InitStructure.I2C_OwnAddress1 = 0x00;           // Own address (not used in master mode)
     I2C_InitStructure.I2C_Ack = I2C_Ack_Enable;
     I2C_InitStructure.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;
-    I2C_InitStructure.I2C_ClockSpeed = 400000;          // 400 KHz (Fast mode)
+    I2C_InitStructure.I2C_ClockSpeed = 400000;          // 400 KHz (Fast mode) , 840KHz max
     
     /* Initialize I2C peripheral */
     I2C_Init(I2C1, &I2C_InitStructure);
@@ -59,7 +59,7 @@ static void I2C_Configuration(void) {
 
     NVIC_InitTypeDef NVIC_InitStructure;
     NVIC_InitStructure.NVIC_IRQChannel = DMA1_Stream6_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 13;
     NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
     NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&NVIC_InitStructure);
@@ -138,7 +138,7 @@ void OLED_UpdatePage_DMA(uint8_t pageIdx, uint8_t* pBuffer) {
     // 3. Trigger DMA for 128 bytes of pixel data
     // Note: Init_DMA_For_I2C1_TX must be defined in dma.c
     Init_DMA_For_I2C1_TX(pBuffer, 128);
-    
+
     // Enable DMA TC interrupt to send STOP (handled in stm32f4xx_it.c)
     DMA_ITConfig(DMA1_Stream6, DMA_IT_TC, ENABLE);
     DMA_Cmd(DMA1_Stream6, ENABLE);

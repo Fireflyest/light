@@ -5,40 +5,6 @@
 
 RCC_ClocksTypeDef RCC_Clocks;
 
-// void show(void) {
-//     GFX_DrawString(0, 0, "STM32 3D & UART", GFX_COLOR_WHITE);
-
-//     // UART Status
-//     GFX_DrawString(0, 20, "UART:", GFX_COLOR_WHITE);
-//     switch (rxStatusUart1) {
-//     case 0:
-//         GFX_DrawString(40, 20, "IDLE  ", GFX_COLOR_WHITE);
-//         break;
-//     case 1:
-//         GFX_DrawString(40, 20, "RX OK ", GFX_COLOR_WHITE);
-//         break;
-//     }
-
-//     // PWM Status
-//     char pwmStatus[64];
-//     sprintf(pwmStatus, "B0:%4d", pwmDutyBuffer[0]);
-//     GFX_DrawString(0, 40, pwmStatus, GFX_COLOR_WHITE);
-
-//     // RX Data
-//     GFX_DrawString(0, 30, "RX:", GFX_COLOR_WHITE);
-//     if (rxStatusUart1 == 1 && rxIndexUart1 > 0) {
-//         uint8_t buffer[11];
-//         uint16_t len = Read_USART1_Data(buffer);
-//         GFX_DrawString(24, 30, (char*)buffer, GFX_COLOR_WHITE);
-        
-//         // Logic from original show()
-//         pwmDutyBuffer[0] = Map_Percent_To_Real(atoi((char*)buffer));
-//         pwmDutyBuffer[1] = Map_Percent_To_Real(atoi((char*)buffer));
-//         pwmDutyBuffer[2] = Map_Percent_To_Real(atoi((char*)buffer));
-//         pwmDutyBuffer[3] = Map_Percent_To_Real(atoi((char*)buffer));
-//     }
-// }
-
 
 int main() {
     /* Enable Clock Security System(CSS): this will generate an NMI exception
@@ -63,23 +29,33 @@ int main() {
     
     LED_Blink(LED_TOGGLE_CMD_BLINK_FAST, 3);
 
+    # ifdef DISPLAY_ENABLE
     UI_Logger_Init(&logWindow, 0, 0, 127, 60);
+    # endif
 
-    Init_USART(BUADRATE_9600);                  // USART1 初始化函数
+    Init_USART(BUADRATE_115200);                  // USART1 初始化函数
 
+    # ifdef DISPLAY_ENABLE
     UI_Logger_AddLine(&logWindow, "UART Init OK");
-
+    # endif
+    
     Init_PWM(PWM_PERIOD, PWM_PRESCALER);        // PWM 初始化函数
 
+    # ifdef DISPLAY_ENABLE
     UI_Logger_AddLine(&logWindow, "PWM Init OK");
+    # endif
 
     Init_MPU();                               // MPU6050 初始化函数
 
+    # ifdef DISPLAY_ENABLE
     UI_Logger_AddLine(&logWindow, "MPU6050 Init OK");
+    # endif
 
     Init_Widgets();
 
+    # ifdef DISPLAY_ENABLE
     UI_Logger_AddLine(&logWindow, "Press Key to Start");
+    # endif
 
-    Loop(&logWindow);
+    Loop();
 }

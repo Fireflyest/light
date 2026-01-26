@@ -183,6 +183,21 @@ void DMA1_Stream6_IRQHandler(void) {
 }
 
 
+void ADC_IRQHandler(void)
+{
+    if (ADC_GetITStatus(ADC1, ADC_IT_EOC))
+    {
+        pwr_adc_raw = ADC_GetConversionValue(ADC1);
+        ADC_ClearITPendingBit(ADC1, ADC_IT_EOC);
+        GPIO_InitTypeDef GPIO_InitStructure;
+        GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1;
+        GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN;  /* high-Z */
+        GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+        GPIO_Init(GPIOC, &GPIO_InitStructure);
+        pwr_state = PWR_STATE_DISABLE;
+    }
+}
+
 /**
   * @brief  This function handles PPP interrupt request.
   * @param  None

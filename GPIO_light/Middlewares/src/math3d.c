@@ -4,60 +4,6 @@
 #include "arm_math.h"
 
 
-// Simple approximation to avoid linking libm
-// static float arm_sin_f32(float x) {
-//     const float PI = 3.14159265f;
-//     const float TWO_PI = 6.2831853f;
-//     const float HALF_PI = 1.57079632f;
-
-//     // 1. Reduce to range [-PI, PI]
-//     // Use integer division for large angles to avoid slow loops
-//     int k = (int)(x / TWO_PI);
-//     x -= k * TWO_PI;
-    
-//     if (x > PI) x -= TWO_PI;
-//     if (x < -PI) x += TWO_PI;
-    
-//     // 2. Fold range to [-PI/2, PI/2] using symmetry
-//     // sin(PI - x) = sin(x)
-//     // sin(-PI - x) = -sin(PI + x) = -sin(x) -> handled by odd function property? 
-//     // Actually: sin(x) for x in [PI/2, PI] -> sin(PI-x)
-//     //           sin(x) for x in [-PI, -PI/2] -> sin(-PI-x)
-    
-//     if (x > HALF_PI) {
-//         x = PI - x;
-//     } else if (x < -HALF_PI) {
-//         x = -PI - x;
-//     }
-    
-//     // 3. Taylor series: x - x^3/6 + x^5/120
-//     // This is very accurate within [-PI/2, PI/2]
-//     float x2 = x * x;
-//     return x * (1.0f - x2 / 6.0f + (x2 * x2) / 120.0f);
-// }
-
-// static float arm_cos_f32(float x) {
-//     return arm_sin_f32(x + 1.57079632f);
-// }
-
-// static float sqrtf(float x) {
-//     if (x <= 0.0f) return 0.0f;
-
-//     union { uint32_t i; float f; } u;
-//     u.f = x;
-
-//     /* initial guess for 1/sqrt(x) */
-//     u.i = 0x5f3759df - (u.i >> 1);
-//     float y = u.f;
-
-//     /* two Newton-Raphson iterations to refine y = 1/sqrt(x) */
-//     y = y * (1.5f - 0.5f * x * y * y);
-//     y = y * (1.5f - 0.5f * x * y * y);
-
-//     /* sqrt(x) = x * (1/sqrt(x)) */
-//     return x * y;
-// }
-
 static inline int round_to_int(float v) {
     return (int)(v >= 0.0f ? v + 0.5f : v - 0.5f);
 }

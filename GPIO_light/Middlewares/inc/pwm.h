@@ -3,7 +3,7 @@
 
 # include "stm32f4xx.h"
 
-# define PWM_PERIOD     20000    // PWM 周期
+# define PWM_PERIOD     500    // PWM 周期
 # define PWM_PRESCALER  84       // 84MHz 时钟下，分频为 84 得到 1MHz 的计数频率
 
 # define PWM_MAX_DUTY   PWM_PERIOD          // 最大占空比

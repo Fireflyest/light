@@ -5,9 +5,15 @@
 #include <math.h>
 
 __IO uint16_t sysTick;
+
+# ifdef DISPLAY_ENABLE
 UI_Logger logWindow;
 uint16_t screenFps = 0;
 uint16_t logicFps = 0;
+UI_Widget* widgets[16];
+static void UI_MPU_BMP_Draw(UI_Widget* widget);
+static void UI_Cube_Draw(UI_Widget* widget);
+# endif
 
 typedef enum { 
     STATE_NONE,
@@ -16,13 +22,6 @@ typedef enum {
     STATE_CUBE
 } AppState;
 AppState currentState;
-
-UI_Widget* widgets[16];
-
-
-static void UI_MPU_BMP_Draw(UI_Widget* widget);
-static void UI_Cube_Draw(UI_Widget* widget);
-
 
 void delay_ms(__IO uint32_t nTime) {
     uint32_t start = sysTick;
@@ -36,9 +35,11 @@ void Init_USystem() {
 }
 
 void Init_Display() {
+    # ifdef DISPLAY_ENABLE
     Init_OLED_Hardware();
     Init_GFX();
     Init_UI();
+    # endif
 }
 
 void Init_USART(uint16_t baudrate) {
@@ -53,10 +54,11 @@ void Init_PWM(uint16_t period, uint16_t prescaler) {
 }
 
 void Init_MPU() {
-    Init_MPU_BMP_Hardware();
+    Init_IMU_Hardware();
 }
 
 void Init_Widgets() {
+    # ifdef DISPLAY_ENABLE
     widgets[STATE_NONE] = (UI_Widget*)&logWindow;
     currentState = STATE_NONE;
 
@@ -78,6 +80,7 @@ void Init_Widgets() {
     UI_Window_Init(&cubeWindow, 0, 0, 128, 64);
     cubeWindow.base.draw = UI_Cube_Draw;
     widgets[STATE_CUBE] = (UI_Widget*)&cubeWindow;
+    # endif
 }
 
 uint16_t Read_Bluetooth_Command(uint8_t* buffer) {
@@ -89,8 +92,9 @@ uint16_t Read_Bluetooth_Command(uint8_t* buffer) {
 }
 
 
-float angleX = 0, angleY = 0, angleZ = 0;
 
+# ifdef DISPLAY_ENABLE
+float angleX = 0, angleY = 0, angleZ = 0;
 void UI_MPU_BMP_Draw(UI_Widget* widget) {
     char line[40];
     int x = widget->x + 2;
@@ -182,7 +186,7 @@ void UI_Cube_Draw(UI_Widget* widget) {
     GFX_DrawString(0, 10, fpsLine, GFX_COLOR_WHITE);
     #endif
 }
-
+# endif
 
 void System_Update_Task() {
     static uint8_t keyTiming = 0;
@@ -228,7 +232,7 @@ void System_Update_Task() {
     }
 
     // mpu data read
-    Read_MPU_All();
+    Read_IMU_All();
     Read_BMP_All();
 }
 
@@ -238,7 +242,7 @@ void Loop() {
     int displayCounter = 0;  // 屏幕刷新计数
     int lastTime = sysTick;
 
-    const uint16_t TARGET_FRAME_TIME = 20; // 50 FPS 目标逻辑频率
+    const uint16_t TARGET_FRAME_TIME = 30; // 帧间隔，单位毫秒 (10 FPS)
     uint16_t frameStart;
     
     while (1) {
@@ -252,29 +256,36 @@ void Loop() {
         uint8_t commandBuffer[RX_BUFFER_SIZE] = {0};
         uint16_t len = Read_Bluetooth_Command(commandBuffer);
 
-        if (len > 0) {
-            UI_Logger_AddLine(&logWindow, (char*)commandBuffer);
-            // ...existing command handling code...
-            if (commandBuffer[0] == 'H') {
-                currentState = STATE_HOME;
-            } else if (commandBuffer[0] == 'C') {
-                currentState = STATE_CUBE;
-            } else if (commandBuffer[0] == 'N') {
-                currentState = STATE_NONE;
-            } else if (commandBuffer[0] == 'S') {
-                currentState = STATE_MPU;
-            } else {
-                pwmDutyBuffer[0] = Map_Percent_To_Real(atoi((char*)commandBuffer));
-                pwmDutyBuffer[1] = Map_Percent_To_Real(atoi((char*)commandBuffer));
-                pwmDutyBuffer[2] = Map_Percent_To_Real(atoi((char*)commandBuffer));
-                pwmDutyBuffer[3] = Map_Percent_To_Real(atoi((char*)commandBuffer));
-                uint8_t pwm_status[64];
-                sprintf((char*)pwm_status, "PWM Set to: %d", Map_Percent_To_Real(atoi((char*)commandBuffer)));
-                UI_Logger_AddLine(&logWindow, (char*)pwm_status);
-            }
-        }
+        // if (len > 0) {
+        //     # ifdef DISPLAY_ENABLE
+        //     UI_Logger_AddLine(&logWindow, (char*)commandBuffer);
+        //     # endif
+
+        //     // ...existing command handling code...
+        //     if (commandBuffer[0] == 'H') {
+        //         currentState = STATE_HOME;
+        //     } else if (commandBuffer[0] == 'C') {
+        //         currentState = STATE_CUBE;
+        //     } else if (commandBuffer[0] == 'N') {
+        //         currentState = STATE_NONE;
+        //     } else if (commandBuffer[0] == 'S') {
+        //         currentState = STATE_MPU;
+        //     } else {
+        //         pwmDutyBuffer[0] = Map_Percent_To_Real(atoi((char*)commandBuffer));
+        //         pwmDutyBuffer[1] = Map_Percent_To_Real(atoi((char*)commandBuffer));
+        //         pwmDutyBuffer[2] = Map_Percent_To_Real(atoi((char*)commandBuffer));
+        //         pwmDutyBuffer[3] = Map_Percent_To_Real(atoi((char*)commandBuffer));
+
+        //         # ifdef DISPLAY_ENABLE
+        //         uint8_t pwm_status[64];
+        //         sprintf((char*)pwm_status, "PWM Set to: %d", Map_Percent_To_Real(atoi((char*)commandBuffer)));
+        //         UI_Logger_AddLine(&logWindow, (char*)pwm_status);
+        //         # endif
+        //     }
+        // }
 
         // 3. 渲染与屏幕刷新
+        # ifdef DISPLAY_ENABLE
         GFX_Clear();
         UI_DrawTree(widgets[currentState], 0, 0);
         
@@ -293,13 +304,53 @@ void Loop() {
             logicCounter = 0;
             lastTime = now;
         }
+        # endif
 
         if (Key_PressConsume()) {
             char pwm_status[64];
             sprintf(pwm_status, "PWM: %d, %d, %d, %d\r\n", 
                     TIM3->CCR1, TIM3->CCR2, TIM3->CCR3, TIM3->CCR4);
             Write_USART1_Data(pwm_status, strlen(pwm_status));
+
+
+            # ifdef DISPLAY_ENABLE
+            UI_Logger_AddLine(&logWindow, (char*)pwm_status);
+            # endif
+
+            currentState = STATE_MPU;
+
+
+            // uint8_t clockSource = RCC_GetSYSCLKSource();
+            // if (clockSource == 0x00) {
+            //     // Write_USART1_Data("0", 30);
+            // } else if (clockSource == 0x04) {
+            //     // Write_USART1_Data("0", 30);
+            // } else if (clockSource == 0x08) {
+            //     // Write_USART1_Data("Clock Source: PLL\r\n", 19);
+            //     // 如果是 PLL，需要进一步判断 PLL 的来源
+            //     if (RCC->PLLCFGR & RCC_PLLCFGR_PLLSRC_HSE) {
+            //         Write_USART1_Data("PLL Source: HSE\r\n", 17);
+            //     } else {
+            //         // Write_USART1_Data("PLL Source: HSI\r\n", 17);
+            //     }
+            // }
         }
+
+        static int pwm_var = 0;
+        if (pwm_var >= 50) pwm_var = 0;
+        pwm_var += 10;
+        pwmDutyBuffer[0] = Map_Percent_To_Real(pwm_var);
+        pwmDutyBuffer[1] = Map_Percent_To_Real(pwm_var);
+        pwmDutyBuffer[2] = Map_Percent_To_Real(pwm_var);
+        pwmDutyBuffer[3] = Map_Percent_To_Real(pwm_var);
+
+
+        // static char dida[16];
+        // sprintf(dida, "0%d%d", 1, 0);
+        // Write_USART1_Data(dida, strlen(dida));
+
+        USART_SendData(USART1, 'A');
+        while (USART_GetFlagStatus(USART1, USART_FLAG_TXE) == RESET);
 
         uint16_t frameTime = sysTick - frameStart;
         if (frameTime < TARGET_FRAME_TIME) {

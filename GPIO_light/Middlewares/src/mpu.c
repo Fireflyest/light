@@ -3,6 +3,7 @@
 # include "math.h"
 
 uint8_t mpuDataBuffer[14];
+uint8_t magDataBuffer[7];
 uint8_t bmpDataBuffer[6];
 
 typedef struct {
@@ -25,12 +26,41 @@ float temperature;
 float barometricPressure;
 float altitude;
 
+static void Init_IMU_GPIO(void);
+static void Init_MPU_Hardware(void);
+static void Init_BMP_Hardware(void);
+static void Init_ICM_Hardware(void);
+static void ICM_SelectBank(uint8_t bank);
+
 static void Read_BMP_Calibration(void);
 static void BMP_Compensate_T(int32_t adc_T);
 static void BMP_Compensate_P(int32_t adc_P);
 static void BMP_GetAltitude();
 
-void Init_MPU_BMP_Hardware(void) {
+#ifdef COMMUNICATION_TYPE_SPI
+static inline void MPU_SPI_CS_ON(void)  { GPIO_ResetBits(GPIOB, GPIO_Pin_12); }
+static inline void MPU_SPI_CS_OFF(void) { GPIO_SetBits(GPIOB, GPIO_Pin_12); }
+static inline void BMP_SPI_CS_ON(void)  { GPIO_ResetBits(GPIOA, GPIO_Pin_5); }
+static inline void BMP_SPI_CS_OFF(void) { GPIO_SetBits(GPIOA, GPIO_Pin_5); }
+static uint8_t spi_transfer_byte(uint8_t tx) {
+    // wait TXE
+    uint16_t timeout;
+    for (timeout = 0xFFFF; timeout > 0 && SPI_I2S_GetFlagStatus(SPI2, SPI_I2S_FLAG_TXE) == RESET; timeout--);
+    SPI_I2S_SendData(SPI2, tx);
+    // wait RXNE
+    for (timeout = 0xFFFF; timeout > 0 && SPI_I2S_GetFlagStatus(SPI2, SPI_I2S_FLAG_RXNE) == RESET; timeout--);
+    return (uint8_t)SPI_I2S_ReceiveData(SPI2);
+}
+#endif // #ifdef COMMUNICATION_TYPE_SPI
+
+
+void Init_IMU_Hardware(void) {
+    Init_MPU_Hardware();
+    Init_ICM_Hardware();
+    Init_BMP_Hardware();
+}
+
+void Init_IMU_GPIO(void) {
     #ifdef COMMUNICATION_TYPE_I2C
     // Enable I2C2 clock
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C2, ENABLE);
@@ -62,7 +92,7 @@ void Init_MPU_BMP_Hardware(void) {
     I2C_Init(I2C2, &I2C_InitStructure);
     /* Enable I2C2 */
     I2C_Cmd(I2C2, ENABLE);
-    #endif
+    #endif // #ifdef COMMUNICATION_TYPE_I2C
 
     #ifdef COMMUNICATION_TYPE_SPI
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI2, ENABLE);
@@ -90,15 +120,15 @@ void Init_MPU_BMP_Hardware(void) {
     GPIO_Init(GPIOB, &GPIO_InitStructure);
     GPIO_ResetBits(GPIOB, GPIO_Pin_12); // spi mode
 
-    #ifdef USE_BMP
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_15;
+    #ifdef BMP280
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_5;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
     GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
     GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;
     GPIO_Init(GPIOA, &GPIO_InitStructure);
-    GPIO_ResetBits(GPIOA, GPIO_Pin_15); // spi mode
-    #endif
+    GPIO_ResetBits(GPIOA, GPIO_Pin_5); // spi mode
+    #endif // #ifdef BMP280
 
     // SPI2 init (master, Mode 0)
     SPI_I2S_DeInit(SPI2);
@@ -114,40 +144,65 @@ void Init_MPU_BMP_Hardware(void) {
     SPI_InitStructure.SPI_CRCPolynomial = 7;
     SPI_Init(SPI2, &SPI_InitStructure);
     SPI_Cmd(SPI2, ENABLE);
-    #endif
+    #endif // #ifdef COMMUNICATION_TYPE_SPI
+}
 
+void Init_MPU_Hardware(void) {
+    #if defined(MPU_6500) || defined(MPU_9250)
     Write_MPU_Register(MPU_PWR_MGMT_1, 0x01);
     Write_MPU_Register(MPU_PWR_MGMT_2, 0x00);
     Write_MPU_Register(MPU_SMPLRT_DIV, 0x09);
     Write_MPU_Register(MPU_CONFIG, 0x06);
     Write_MPU_Register(MPU_GYRO_CONFIG, 0x18);
     Write_MPU_Register(MPU_ACCEL_CONFIG, 0x18);
+    #endif // #if defined(MPU_6500) || defined(MPU_9250
+}
+
+void Init_ICM_Hardware(void) {
+    #ifdef ICM_20948
+    ICM_SelectBank(0);
+    
+    // 2. 解除睡眠模式 (PWR_MGMT_1 = 0x6B)
+    // 必须先把原本的 0x41 (睡眠位) 改为 0x01 (自动选择时钟源)
+    Write_MPU_Register(ICM_PWR_MGMT_1, 0x01); // ICM-20948 的 PWR_MGMT_1 地址通常是 0x06
+    Write_MPU_Register(ICM_PWR_MGMT_2, 0x00); // 启用所有引脚
+
+    // 2. 开启 I2C Master 模式 (用于读取磁力计)
+    // USER_CTRL 地址为 0x03，位 5 (I2C_MST_EN) 置 1
+    Write_MPU_Register(0x03, 0x20); 
+
+    ICM_SelectBank(3);
+    Write_MPU_Register(0x01, 0x07); // I2C_MST_CTRL: 约 345kHz
+
+    Write_MPU_Register(0x03, 0x0C); // I2C_SLV0_ADDR: Mag写模式地址 0x0C
+    Write_MPU_Register(0x04, 0x31); // I2C_SLV0_REG: CNTL2 寄存器
+    Write_MPU_Register(0x06, 0x08); // I2C_SLV0_DO: 写入 0x08 (100Hz 模式4)
+    Write_MPU_Register(0x05, 0x81); // I2C_SLV0_CTRL: 使能, 写入 1 字节
+
+    // 4. 配置磁力计 AK09916 自动读取 (Slave 0)
+    // AK09916 的 I2C 地址是 0x0C，设置位 7 为 1 表示读
+    Write_MPU_Register(0x03, 0x80 | 0x0C); // I2C_SLV0_ADDR
+    Write_MPU_Register(0x04, 0x11);        // I2C_SLV0_REG: 从磁力计 0x11 (HXL) 开始读
+    Write_MPU_Register(0x05, 0x89);        // I2C_SLV0_CTRL: 启用 Slave0，读取 9 个字节 (包含 ST2 状态)
+
+    // 3. 切换到 Bank 2 配置量程
+    ICM_SelectBank(2);
+    Write_MPU_Register(ICM_GYRO_CONFIG_1, 0x19);   // ±2000 dps
+    Write_MPU_Register(ICM_ACCEL_CONFIG, 0x11);      // ±16 g
+    
+    // 4. 切回 Bank 0 准备读数据
+    ICM_SelectBank(0);
+    #endif // #ifdef ICM_20948
+}
 
 
-    #ifdef USE_BMP
-
+void Init_BMP_Hardware(void) {
+    #ifdef BMP280
     Write_BMP_Register(BMP_CTRL_MEAS, 0x27); // normal mode, temp and pressure oversampling x1
     Write_BMP_Register(BMP_CONFIG, 0xA0);    // standby 1000ms, filter off
     Read_BMP_Calibration();
-
-    #endif
+    #endif //#ifdef BMP280
 }
-
-#ifdef COMMUNICATION_TYPE_SPI
-static inline void MPU_SPI_CS_ON(void)  { GPIO_ResetBits(GPIOB, GPIO_Pin_12); }
-static inline void MPU_SPI_CS_OFF(void) { GPIO_SetBits(GPIOB, GPIO_Pin_12); }
-static inline void BMP_SPI_CS_ON(void)  { GPIO_ResetBits(GPIOA, GPIO_Pin_15); }
-static inline void BMP_SPI_CS_OFF(void) { GPIO_SetBits(GPIOA, GPIO_Pin_15); }
-
-static uint8_t spi_transfer_byte(uint8_t tx) {
-    // wait TXE
-    while (SPI_I2S_GetFlagStatus(SPI2, SPI_I2S_FLAG_TXE) == RESET);
-    SPI_I2S_SendData(SPI2, tx);
-    // wait RXNE
-    while (SPI_I2S_GetFlagStatus(SPI2, SPI_I2S_FLAG_RXNE) == RESET);
-    return (uint8_t)SPI_I2S_ReceiveData(SPI2);
-}
-#endif
 
 void Write_MPU_Register(uint8_t reg, uint8_t data) {
     #ifdef COMMUNICATION_TYPE_I2C
@@ -162,7 +217,7 @@ void Write_MPU_Register(uint8_t reg, uint8_t data) {
     I2C_SendData(I2C2, data);
     for (timeout = 0xFF; timeout > 0 && !I2C_CheckEvent(I2C2, I2C_EVENT_MASTER_BYTE_TRANSMITTED); timeout--);
     I2C_GenerateSTOP(I2C2, ENABLE);
-    #endif
+    #endif // #ifdef COMMUNICATION_TYPE_I2C
 
     #ifdef COMMUNICATION_TYPE_SPI
     MPU_SPI_CS_ON();
@@ -171,7 +226,7 @@ void Write_MPU_Register(uint8_t reg, uint8_t data) {
     // send data
     (void)spi_transfer_byte(data);
     MPU_SPI_CS_OFF();
-    #endif
+    #endif // #ifdef COMMUNICATION_TYPE_SPI
 }
 
 void Write_BMP_Register(uint8_t reg, uint8_t data) {
@@ -182,7 +237,7 @@ void Write_BMP_Register(uint8_t reg, uint8_t data) {
     // send data
     (void)spi_transfer_byte(data);
     BMP_SPI_CS_OFF();
-    #endif
+    #endif // #ifdef COMMUNICATION_TYPE_SPI
 }
 
 
@@ -200,7 +255,7 @@ uint8_t Read_BMP_Register(uint8_t reg) {
     return v;
 }
 
-void Read_MPU_All(void) {
+void Read_IMU_All(void) {
     #ifdef COMMUNICATION_TYPE_I2C
     uint32_t timeout;
     for (timeout = 0x1FFFF; timeout > 0 && I2C_GetFlagStatus(I2C2, I2C_FLAG_BUSY); timeout--);
@@ -223,9 +278,12 @@ void Read_MPU_All(void) {
         mpuDataBuffer[i] = I2C_ReceiveData(I2C2);
     }
     I2C_AcknowledgeConfig(I2C2, ENABLE);
-    #endif
+    #endif // #ifdef COMMUNICATION_TYPE_I2C
 
     #ifdef COMMUNICATION_TYPE_SPI
+
+    #ifdef MPU_6500
+
     MPU_SPI_CS_ON();
     // send register address with Read bit (typically MSB=1 for MPU SPI read)
     (void)spi_transfer_byte((uint8_t)(MPU_ACCEL_XOUT_H | 0x80));
@@ -233,10 +291,39 @@ void Read_MPU_All(void) {
         mpuDataBuffer[i] = spi_transfer_byte(0xFF);
     }
     MPU_SPI_CS_OFF();
-    #endif
+    #endif // #ifdef MPU_6500
+
+    #ifdef MPU_9250
+    MPU_SPI_CS_ON();
+    // send register address with Read bit (typically MSB=1 for MPU SPI read)
+    (void)spi_transfer_byte((uint8_t)(MPU_ACCEL_XOUT_H | 0x80));
+    for (int i = 0; i < 14; ++i) {
+        mpuDataBuffer[i] = spi_transfer_byte(0xFF);
+    }
+    MPU_SPI_CS_OFF();
+    #endif // #ifdef MPU_9250
+
+    #ifdef ICM_20948
+    ICM_SelectBank(0);
+    MPU_SPI_CS_ON();
+    // send register address with Read bit (typically MSB=1 for ICM SPI read)
+    (void)spi_transfer_byte((uint8_t)(ICM_ACCEL_XOUT_H | 0x80));
+    for (int i = 0; i < 21; ++i) {
+        if (i < 14) {
+            mpuDataBuffer[i] = spi_transfer_byte(0xFF);
+        } else {
+            // 磁力计数据自动存放在 EXT_SLV_SENS_DATA_00 (0x3B) 开始的寄存器中
+            magDataBuffer[i - 14] = spi_transfer_byte(0xFF);
+        }
+    }
+    MPU_SPI_CS_OFF();
+    #endif // #ifdef ICM_20948
+
+    #endif // #ifdef COMMUNICATION_TYPE_SPI
 }
 
 void Read_BMP_All(void) {
+    #ifdef BMP280
     #ifdef COMMUNICATION_TYPE_SPI
     BMP_SPI_CS_ON();
     // send register address with Read bit (typically MSB=1 for BMP SPI read)
@@ -250,7 +337,8 @@ void Read_BMP_All(void) {
     BMP_Compensate_T(adc_T);
     BMP_Compensate_P(adc_P);
     BMP_GetAltitude();
-    #endif
+    #endif // #ifdef COMMUNICATION_TYPE_SPI
+    #endif // #ifdef BMP280
 }
 
 void Read_BMP_Calibration(void) {
@@ -290,10 +378,22 @@ void BMP_Compensate_P(int32_t adc_P) {
     var1 = (((int64_t)bmp_calib.dig_P9) * (p >> 13) * (p >> 13)) >> 25;
     var2 = (((int64_t)bmp_calib.dig_P8) * p) >> 19;
     p = ((p + var1 + var2) >> 8) + (((int64_t)bmp_calib.dig_P7) << 4);
-    barometricPressure = p / 25600.0f; // convert fixed-point to float Pa
+    barometricPressure = p / 25600.0f + BAROMETERIC_PRESSURE_OFFSET; // convert fixed-point to float Pa
 }
 
 void BMP_GetAltitude() {
-    float a = 0.1903f;
-    altitude = 44330.0f * (1.0f - powf(barometricPressure / SEA_LEVEL_PRESSURE_HPA, a));
+    float T = temperature + 273.15f; 
+    // 0.190263 是 R*L/g 的常数
+    const float EXP = 0.190263f; 
+    
+    // 使用实时温度 T 替代固定常数 44330 (44330 实际上包含了 288.15K 的假设)
+    // 高度 = (T / 0.0065) * (1 - (P/P0)^EXP)
+    altitude = (T / 0.0065f) * (1.0f - powf(barometricPressure / SEA_LEVEL_PRESSURE_HPA, EXP));
+}
+
+void ICM_SelectBank(uint8_t bank) {
+#ifdef ICM_20948
+    // ICM-20948 的 REG_BANK_SEL 地址是 0x7F，Bank 值位于位 [5:4]
+    Write_MPU_Register(REG_BANK_SEL, (bank << 4) & 0x30);
+#endif
 }
