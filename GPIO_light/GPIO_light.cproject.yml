@@ -93,6 +93,10 @@ project:
         - file: ./Middlewares/src/mpu.c
         - file: ./Middlewares/inc/pwr.h
         - file: ./Middlewares/src/pwr.c
+        - file: ./Middlewares/inc/kalman.h
+        - file: ./Middlewares/src/kalman.c
+        - file: ./Middlewares/inc/attitude.h
+        - file: ./Middlewares/src/attitude.c
         - file: ./Middlewares/display/bmp.h
         - file: ./Middlewares/display/bmp.c
         - file: ./Middlewares/display/font.h

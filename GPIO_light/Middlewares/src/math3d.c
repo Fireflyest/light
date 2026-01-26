@@ -62,6 +62,20 @@ Point3D Math3D_RotateByQuat(Point3D v, Quaternion q) {
     return out;
 }
 
+void Math3D_QuatRotateVector(Vector3D* v, Quaternion* q) {
+    // t = 2 * cross(q_vec, v)
+    float tx = 2.0f * (q->y * v->z - q->z * v->y);
+    float ty = 2.0f * (q->z * v->x - q->x * v->z);
+    float tz = 2.0f * (q->x * v->y - q->y * v->x);
+    // v' = v + q.w * t + cross(q_vec, t)
+    float cx = q->y * tz - q->z * ty;
+    float cy = q->z * tx - q->x * tz;
+    float cz = q->x * ty - q->y * tx;
+    v->x = v->x + q->w * tx + cx;
+    v->y = v->y + q->w * ty + cy;
+    v->z = v->z + q->w * tz + cz;
+}
+
 Point3D Math3D_RotateX(Point3D p, float angle) {
     Point3D newP;
     float c = arm_cos_f32(angle);

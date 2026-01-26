@@ -45,7 +45,7 @@ int main() {
     UI_Logger_AddLine(&logWindow, "PWM Init OK");
     # endif
 
-    Init_MPU();                               // MPU6050 初始化函数
+    Init_IMU();                               // MPU6050 初始化函数
 
     # ifdef DISPLAY_ENABLE
     UI_Logger_AddLine(&logWindow, "MPU6050 Init OK");

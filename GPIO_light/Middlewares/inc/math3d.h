@@ -30,6 +30,15 @@ Quaternion Math3D_QuatFromEuler(float yaw, float pitch, float roll);
 Quaternion Math3D_QuatNormalize(Quaternion q);
 // rotate point by quaternion (fast)
 Point3D Math3D_RotateByQuat(Point3D p, Quaternion q);
+
+
+
+
+void Math3D_QuatRotateVector(Vector3D* v, Quaternion* q);
+
+
+
+
 // convenience: build quaternion from axis-angle (axis must be normalized)
 Quaternion Math3D_QuatFromAxisAngle(Vector3D axis, float angle);
 

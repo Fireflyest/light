@@ -53,8 +53,23 @@ void Init_PWM(uint16_t period, uint16_t prescaler) {
     Init_DMA_For_PWM_TIM3(pwmDutyBuffer);
 }
 
-void Init_MPU() {
+void Init_IMU() {
     Init_IMU_Hardware();
+
+    long sum[3] = {0, 0, 0};
+    for(int i = 0; i < 100; i++) {
+        Read_IMU_All();
+        // 累加陀螺仪原始数据 (ICM-20948 对应索引 6-11)
+        sum[0] += (int16_t)((mpuDataBuffer[6] << 8) | mpuDataBuffer[7]);
+        sum[1] += (int16_t)((mpuDataBuffer[8] << 8) | mpuDataBuffer[9]);
+        sum[2] += (int16_t)((mpuDataBuffer[10] << 8) | mpuDataBuffer[11]);
+        delay_ms(5);
+    }
+    gyro_offset[0] = (float)sum[0] / 100.0f;
+    gyro_offset[1] = (float)sum[1] / 100.0f;
+    gyro_offset[2] = (float)sum[2] / 100.0f;
+
+    Kalman_Init(&imu_ekf);
 }
 
 void Init_Widgets() {
@@ -94,7 +109,6 @@ uint16_t Read_Bluetooth_Command(uint8_t* buffer) {
 
 
 # ifdef DISPLAY_ENABLE
-float angleX = 0, angleY = 0, angleZ = 0;
 void UI_MPU_BMP_Draw(UI_Widget* widget) {
     char line[40];
     int x = widget->x + 2;
@@ -182,19 +196,41 @@ void UI_Cube_Draw(UI_Widget* widget) {
     Point3D center = { 0.0f, 0.0f, -20.0f };    // closer to camera (try -20, -40, ...)
     Vector3D halfExtent = { 20.0f, 20.0f, 20.0f }; // larger half-size for clearer view
 
-    // Build quaternion
-    // Math3D_QuatFromEuler(yaw, pitch, roll) -- currently yaw=Z, pitch=Y, roll=X in our code
-    // If rotation looks wrong, try swapping the order below (see alternative commented)
-    Quaternion q = Math3D_QuatFromEuler(angleZ, angleY, angleX); // current mapping
-    // Quaternion q = Math3D_QuatFromEuler(angleX, angleY, angleZ); // try if rotation axes swapped
-    q = Math3D_QuatNormalize(q);
+    Quaternion q;
+    q.w = imu_ekf.q[0];
+    q.x = -imu_ekf.q[1]; // 取负号即为共轭 (Inverse rotation)
+    q.y = -imu_ekf.q[2];
+    q.z = -imu_ekf.q[3];
 
     GFX3D_DrawCube(&center, &halfExtent, &q, GFX_COLOR_WHITE);
 
-    // animate rotation (tweak speeds if needed)
-    angleX += 0.04f;
-    angleY += 0.03f;
-    angleZ += 0.02f;
+    float axisLen = 10.0f; // 轴的长度（应大于立方体半长 20.0f）
+    Vector3D vX = { axisLen, 0.0f, 0.0f };
+    Vector3D vY = { 0.0f, axisLen, 0.0f };
+    Vector3D vZ = { 0.0f, 0.0f, axisLen * 2 };
+
+    // 使用四元数旋转轴向量
+    Math3D_QuatRotateVector(&vX, &q);
+    Math3D_QuatRotateVector(&vY, &q);
+    Math3D_QuatRotateVector(&vZ, &q);
+
+    // 计算三轴末端在 3D 空间的位置
+    Point3D pStart, pEnd;
+
+    // X轴
+    pStart = center;
+    pEnd.x = center.x + vX.x; pEnd.y = center.y + vX.y; pEnd.z = center.z + vX.z;
+    GFX3D_DrawLine(&pStart, &pEnd, GFX_COLOR_WHITE);
+
+    // Y轴
+    pStart = center;
+    pEnd.x = center.x + vY.x; pEnd.y = center.y + vY.y; pEnd.z = center.z + vY.z;
+    GFX3D_DrawLine(&pStart, &pEnd, GFX_COLOR_WHITE);
+
+    // Z轴
+    pStart = center;
+    pEnd.x = center.x + vZ.x; pEnd.y = center.y + vZ.y; pEnd.z = center.z + vZ.z;
+    GFX3D_DrawLine(&pStart, &pEnd, GFX_COLOR_WHITE);
 
     // show logic FPS
     char fpsLine[20];
@@ -205,6 +241,8 @@ void UI_Cube_Draw(UI_Widget* widget) {
     snprintf(fpsLine, sizeof(fpsLine), "SFPS: %d", screenFps);
     GFX_DrawString(0, 10, fpsLine, GFX_COLOR_WHITE);
     #endif
+
+
 }
 # endif
 
@@ -250,19 +288,16 @@ void System_Update_Task() {
     } else {
         ledTiming = LED_TOGGLE_INTERVAL; 
     }
-
-    // mpu data read
-    Read_IMU_All();
-    Read_BMP_All();
 }
 
 
 void Loop() {
-    int logicCounter = 0;    // 程序循环计数
-    int displayCounter = 0;  // 屏幕刷新计数
-    int lastTime = sysTick;
+    uint16_t logicCounter = 0;    // 程序循环计数
+    uint16_t displayCounter = 0;  // 屏幕刷新计数
+    uint16_t lastTime = sysTick;
+    uint16_t lastUpdateTick = sysTick;
 
-    const uint16_t TARGET_FRAME_TIME = 30; // 帧间隔
+    const uint16_t TARGET_FRAME_TIME = 10; // 帧间隔
     uint16_t frameStart;
     
     while (1) {
@@ -271,6 +306,13 @@ void Loop() {
 
         // 1. 核心系统任务更新 (按程序频率运行)
         System_Update_Task();
+
+        float dt = (uint16_t)(frameStart - lastUpdateTick) / 1000.0f;
+        lastUpdateTick = frameStart;
+        Read_IMU_All();
+        Read_BMP_All();
+        Attitude_Update(dt); 
+
 
         // 2. 蓝牙命令处理
         uint8_t commandBuffer[RX_BUFFER_SIZE] = {0};
@@ -337,7 +379,7 @@ void Loop() {
             UI_Logger_AddLine(&logWindow, (char*)pwm_status);
             # endif
 
-            currentState = STATE_MPU;
+            currentState = STATE_CUBE;
 
 
             // uint8_t clockSource = RCC_GetSYSCLKSource();
