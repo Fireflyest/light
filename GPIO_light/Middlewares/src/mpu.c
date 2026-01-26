@@ -55,6 +55,7 @@ static uint8_t spi_transfer_byte(uint8_t tx) {
 
 
 void Init_IMU_Hardware(void) {
+    Init_IMU_GPIO();
     Init_MPU_Hardware();
     Init_ICM_Hardware();
     Init_BMP_Hardware();
@@ -139,7 +140,7 @@ void Init_IMU_GPIO(void) {
     SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low;        // Mode 0
     SPI_InitStructure.SPI_CPHA = SPI_CPHA_1Edge;
     SPI_InitStructure.SPI_NSS = SPI_NSS_Soft;
-    SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_4; // adjust for speed
+    SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_8; // adjust for speed
     SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
     SPI_InitStructure.SPI_CRCPolynomial = 7;
     SPI_Init(SPI2, &SPI_InitStructure);
@@ -159,40 +160,55 @@ void Init_MPU_Hardware(void) {
 }
 
 void Init_ICM_Hardware(void) {
-    #ifdef ICM_20948
+   #ifdef ICM_20948
     ICM_SelectBank(0);
     
-    // 2. 解除睡眠模式 (PWR_MGMT_1 = 0x6B)
-    // 必须先把原本的 0x41 (睡眠位) 改为 0x01 (自动选择时钟源)
-    Write_MPU_Register(ICM_PWR_MGMT_1, 0x01); // ICM-20948 的 PWR_MGMT_1 地址通常是 0x06
-    Write_MPU_Register(ICM_PWR_MGMT_2, 0x00); // 启用所有引脚
-
-    // 2. 开启 I2C Master 模式 (用于读取磁力计)
-    // USER_CTRL 地址为 0x03，位 5 (I2C_MST_EN) 置 1
-    Write_MPU_Register(0x03, 0x20); 
+    // 1. 硬件复位
+    Write_MPU_Register(0x06, 0x80); 
+    for (volatile uint32_t i = 0; i < 1000000; i++); 
+    
+    // 2. 解除睡眠并切换时钟
+    Write_MPU_Register(0x06, 0x01); 
+    
+    // 3. 关键补丁：先复位 I2C Master，再启用 (参考 HAL 的 0x22 逻辑)
+    // 0x16 = I2C_IF_DIS | I2C_MST_RST | SRAM_RST
+    Write_MPU_Register(0x03, 0x16); 
+    for (volatile uint32_t i = 0; i < 200000; i++); 
+    Write_MPU_Register(0x03, 0x30); // 正式使能 Master 和禁用从机 I2C
 
     ICM_SelectBank(3);
-    Write_MPU_Register(0x01, 0x07); // I2C_MST_CTRL: 约 345kHz
+    // 4. 决定性修正：开启 P_NSR (Restart) 模式 (Bit 4) + 345.6kHz
+    // 0x17 = 0x10 (P_NSR) | 0x07 (Clock)
+    Write_MPU_Register(0x01, 0x17); 
+    Write_MPU_Register(0x02, 0x01); // 使能 Slave 0 延迟采样
 
-    Write_MPU_Register(0x03, 0x0C); // I2C_SLV0_ADDR: Mag写模式地址 0x0C
-    Write_MPU_Register(0x04, 0x31); // I2C_SLV0_REG: CNTL2 寄存器
-    Write_MPU_Register(0x06, 0x08); // I2C_SLV0_DO: 写入 0x08 (100Hz 模式4)
-    Write_MPU_Register(0x05, 0x81); // I2C_SLV0_CTRL: 使能, 写入 1 字节
+    // 5. 磁力计软复位 (HAL 库逻辑补全)
+    Write_MPU_Register(0x03, 0x0C); // Mag 写地址
+    Write_MPU_Register(0x04, 0x32); // CNTL3
+    Write_MPU_Register(0x06, 0x01); // SRST
+    Write_MPU_Register(0x05, 0x81); // 触发单次写
+    for (volatile uint32_t i = 0; i < 500000; i++); 
 
-    // 4. 配置磁力计 AK09916 自动读取 (Slave 0)
-    // AK09916 的 I2C 地址是 0x0C，设置位 7 为 1 表示读
-    Write_MPU_Register(0x03, 0x80 | 0x0C); // I2C_SLV0_ADDR
-    Write_MPU_Register(0x04, 0x11);        // I2C_SLV0_REG: 从磁力计 0x11 (HXL) 开始读
-    Write_MPU_Register(0x05, 0x89);        // I2C_SLV0_CTRL: 启用 Slave0，读取 9 个字节 (包含 ST2 状态)
+    // 6. 设置磁力计连续模式
+    Write_MPU_Register(0x03, 0x0C); 
+    Write_MPU_Register(0x04, 0x31); // CNTL2
+    Write_MPU_Register(0x06, 0x08); // Mode 4 (100Hz)
+    Write_MPU_Register(0x05, 0x81); 
+    for (volatile uint32_t i = 0; i < 500000; i++);
 
-    // 3. 切换到 Bank 2 配置量程
+    // 7. 决定性修正：从 ST1 (0x10) 开始读，长度设为 9 (含 ST1, 6轴数据, TMPS, ST2)
+    Write_MPU_Register(0x03, 0x80 | 0x0C); // Mag 读地址
+    Write_MPU_Register(0x04, 0x10);        // 从 ST1 开始读取
+    Write_MPU_Register(0x05, 0x89);        // 读取 9 字节
+
     ICM_SelectBank(2);
-    Write_MPU_Register(ICM_GYRO_CONFIG_1, 0x19);   // ±2000 dps
-    Write_MPU_Register(ICM_ACCEL_CONFIG, 0x11);      // ±16 g
+    // 按照 HAL 库配置量程
+    Write_MPU_Register(0x00, 0x04); // GYRO_SMPLRT_DIV
+    Write_MPU_Register(0x01, 0x1F); // ±2000dps + DLPF
+    Write_MPU_Register(0x14, 0x1D); // ±8g + DLPF
     
-    // 4. 切回 Bank 0 准备读数据
     ICM_SelectBank(0);
-    #endif // #ifdef ICM_20948
+    #endif 
 }
 
 
@@ -220,6 +236,7 @@ void Write_MPU_Register(uint8_t reg, uint8_t data) {
     #endif // #ifdef COMMUNICATION_TYPE_I2C
 
     #ifdef COMMUNICATION_TYPE_SPI
+    BMP_SPI_CS_OFF();
     MPU_SPI_CS_ON();
     // send register address (ensure MSB = 0 for write)
     (void)spi_transfer_byte((uint8_t)(reg & 0x7F));
@@ -231,6 +248,7 @@ void Write_MPU_Register(uint8_t reg, uint8_t data) {
 
 void Write_BMP_Register(uint8_t reg, uint8_t data) {
     #ifdef COMMUNICATION_TYPE_SPI
+    MPU_SPI_CS_OFF();
     BMP_SPI_CS_ON();
     // send register address (ensure MSB = 0 for write)
     (void)spi_transfer_byte((uint8_t)(reg & 0x7F));
@@ -308,12 +326,14 @@ void Read_IMU_All(void) {
     MPU_SPI_CS_ON();
     // send register address with Read bit (typically MSB=1 for ICM SPI read)
     (void)spi_transfer_byte((uint8_t)(ICM_ACCEL_XOUT_H | 0x80));
-    for (int i = 0; i < 21; ++i) {
+    for (int i = 0; i < 23; ++i) {
         if (i < 14) {
             mpuDataBuffer[i] = spi_transfer_byte(0xFF);
-        } else {
+        } else if (i < 21){
             // 磁力计数据自动存放在 EXT_SLV_SENS_DATA_00 (0x3B) 开始的寄存器中
             magDataBuffer[i - 14] = spi_transfer_byte(0xFF);
+        } else {
+            (void)spi_transfer_byte(0xFF); // 仅仅是为了在总线上读完 ST2，清除标志
         }
     }
     MPU_SPI_CS_OFF();
@@ -392,8 +412,8 @@ void BMP_GetAltitude() {
 }
 
 void ICM_SelectBank(uint8_t bank) {
-#ifdef ICM_20948
+    #ifdef ICM_20948
     // ICM-20948 的 REG_BANK_SEL 地址是 0x7F，Bank 值位于位 [5:4]
     Write_MPU_Register(REG_BANK_SEL, (bank << 4) & 0x30);
-#endif
+    #endif
 }

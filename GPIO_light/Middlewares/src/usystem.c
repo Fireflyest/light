@@ -105,15 +105,35 @@ void UI_MPU_BMP_Draw(UI_Widget* widget) {
     int16_t ay = (int16_t)((mpuDataBuffer[2] << 8) | mpuDataBuffer[3]);
     int16_t az = (int16_t)((mpuDataBuffer[4] << 8) | mpuDataBuffer[5]);
 
+    #if defined(MPU_6500) || defined(MPU_9250)
+
     int16_t gx = (int16_t)((mpuDataBuffer[8] << 8) | mpuDataBuffer[9]);
     int16_t gy = (int16_t)((mpuDataBuffer[10] << 8) | mpuDataBuffer[11]);
     int16_t gz = (int16_t)((mpuDataBuffer[12] << 8) | mpuDataBuffer[13]);
 
+    int16_t mx = (int16_t)((magDataBuffer[0] << 8) | magDataBuffer[1]);
+    int16_t my = (int16_t)((magDataBuffer[2] << 8) | magDataBuffer[3]);
+    int16_t mz = (int16_t)((magDataBuffer[4] << 8) | magDataBuffer[5]);
+
     int16_t tempRaw = (int16_t)((mpuDataBuffer[6] << 8) | mpuDataBuffer[7]);
     float tempC = (float)tempRaw / 333.87f + 21.0f;
+    #endif // #if defined(MPU_6500) || defined(MPU_9250)
 
-    int16_t p1 = (int16_t)((bmpDataBuffer[0] << 12) | (bmpDataBuffer[1] << 4) | (bmpDataBuffer[2] >> 4));
-    int16_t p2 = (int16_t)((bmpDataBuffer[3] << 12) | (bmpDataBuffer[4] << 4) | (bmpDataBuffer[5] >> 4));
+    #ifdef ICM_20948
+
+    // ICM-20948 顺序: 加速度(0-5), 陀螺仪(6-11), 温度(12-13)
+    int16_t gx = (int16_t)((mpuDataBuffer[6] << 8) | mpuDataBuffer[7]);
+    int16_t gy = (int16_t)((mpuDataBuffer[8] << 8) | mpuDataBuffer[9]);
+    int16_t gz = (int16_t)((mpuDataBuffer[10] << 8) | mpuDataBuffer[11]);
+
+    int16_t mx = (int16_t)((magDataBuffer[0] << 8) | magDataBuffer[1]);
+    int16_t my = (int16_t)((magDataBuffer[2] << 8) | magDataBuffer[3]);
+    int16_t mz = (int16_t)((magDataBuffer[4] << 8) | magDataBuffer[5]);
+
+    int16_t tempRaw = (int16_t)((mpuDataBuffer[12] << 8) | mpuDataBuffer[13]);
+    float tempC = (float)tempRaw / 333.87f + 21.0f;
+    #endif // #ifdef ICM_20948
+
 
     snprintf(line, sizeof(line), "AX %6d GX %6d", (int)ax, (int)gx);
     GFX_DrawString(x, y + 0 * lh, line, GFX_COLOR_WHITE);
@@ -124,17 +144,20 @@ void UI_MPU_BMP_Draw(UI_Widget* widget) {
     snprintf(line, sizeof(line), "AZ %6d GZ %6d", (int)az, (int)gz);
     GFX_DrawString(x, y + 2 * lh, line, GFX_COLOR_WHITE);
     
+    snprintf(line, sizeof(line), "MX %6d MY %6d", (int)mx, (int)my);
+    GFX_DrawString(x, y + 3 * lh, line, GFX_COLOR_WHITE);
+
     {
         float at = tempC < 0.0f ? -tempC : tempC;
         int ti = (int)at;                       // integer part
         int tf = (int)(at * 10.0f) % 10;         // one decimal
         if (tempC < 0.0f) {
-            snprintf(line, sizeof(line), "T -%d.%dC", ti, tf);
+            snprintf(line, sizeof(line), "MZ %6d  T -%d.%dC", (int)mz, ti, tf);
         } else {
-            snprintf(line, sizeof(line), "T %d.%dC", ti, tf);
+            snprintf(line, sizeof(line), "MZ %6d  T %d.%dC", (int)mz, ti, tf);
         }
     }
-    GFX_DrawString(x, y + 3 * lh, line, GFX_COLOR_WHITE);
+    GFX_DrawString(x, y + 4 * lh, line, GFX_COLOR_WHITE);
 
 
     {
@@ -145,17 +168,14 @@ void UI_MPU_BMP_Draw(UI_Widget* widget) {
         float ab = barometricPressure < 0.0f ? -barometricPressure : barometricPressure;
         int b_i = (int)ab;
         int b_d = (int)(ab * 10.0f) % 10;
-        snprintf(line, sizeof(line), "T %3d.%1d B %3d.%1d", t_i, t_d, b_i, b_d);
-    }
-    GFX_DrawString(x, y + 4 * lh, line, GFX_COLOR_WHITE);
 
-    {
         float aa = altitude < 0.0f ? -altitude : altitude;
         int a_i = (int)aa;
         int a_d = (int)(aa * 10.0f) % 10;
-        snprintf(line, sizeof(line), "Alt %3d.%1d m", a_i, a_d);
+        snprintf(line, sizeof(line), "%3d.%1d %3d.%1d %3d.%1dm", t_i, t_d, b_i, b_d, a_i, a_d);
     }
     GFX_DrawString(x, y + 5 * lh, line, GFX_COLOR_WHITE);
+    GFX_DrawString(x, y + 6 * lh, " ", GFX_COLOR_WHITE);
 }
 
 void UI_Cube_Draw(UI_Widget* widget) {
@@ -242,7 +262,7 @@ void Loop() {
     int displayCounter = 0;  // 屏幕刷新计数
     int lastTime = sysTick;
 
-    const uint16_t TARGET_FRAME_TIME = 30; // 帧间隔，单位毫秒 (10 FPS)
+    const uint16_t TARGET_FRAME_TIME = 30; // 帧间隔
     uint16_t frameStart;
     
     while (1) {
