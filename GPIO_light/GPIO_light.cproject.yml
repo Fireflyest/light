@@ -97,6 +97,8 @@ project:
         - file: ./Middlewares/src/kalman.c
         - file: ./Middlewares/inc/attitude.h
         - file: ./Middlewares/src/attitude.c
+        - file: ./Middlewares/inc/locate.h
+        - file: ./Middlewares/src/locate.c
         - file: ./Middlewares/inc/pid.h
         - file: ./Middlewares/src/pid.c
         - file: ./Middlewares/inc/lowpass.h

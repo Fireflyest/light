@@ -26,16 +26,17 @@ void Math3D_Project(Point3D* p, float focalLength, float cameraZ);
 
 // build quaternion from Euler angles (radians), order ZYX (yaw, pitch, roll)
 Quaternion Math3D_QuatFromEuler(float yaw, float pitch, float roll);
-// normalize quaternion
-Quaternion Math3D_QuatNormalize(Quaternion q);
+
 // rotate point by quaternion (fast)
 Point3D Math3D_RotateByQuat(Point3D p, Quaternion q);
 
+void Math3D_VectorNormalize(Vector3D* v);
+void Math3D_VectorMultiplyScalar(Vector3D* v, float s);
 
-
-
+void Math3D_QuatNormalize(Quaternion* q);
 void Math3D_QuatRotateVector(Vector3D* v, Quaternion* q);
-
+void Math3D_QuatConjugate(Quaternion* q);
+void Math3D_QuatMultiply(Quaternion* q1, Quaternion* q2);
 
 
 

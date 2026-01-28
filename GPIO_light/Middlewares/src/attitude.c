@@ -3,10 +3,8 @@
 #include "kalman.h"
 #include <math.h>
 
-float gyro_offset[3];
-
 Attitude_t imu_attitude;
-Kalman_EKF_t imu_ekf;
+Attitude_Kalman_EKF_t imu_ekf;
 
 void Attitude_Update(float dt) {
     // 1. 获取物理单位数据 (以 dps 和 g 为单位)
@@ -24,7 +22,7 @@ void Attitude_Update(float dt) {
 
     // 2. 执行四元数 EKF 更新 (单位：dps 需转为 rad/s)
     float deg2rad = 0.01745329f;
-    Kalman_Update(&imu_ekf, gx * deg2rad, gy * deg2rad, gz * deg2rad, ax, ay, az, mx, my, mz, dt);
+    Attitude_Kalman_Update(&imu_ekf, gx * deg2rad, gy * deg2rad, gz * deg2rad, ax, ay, az, mx, my, mz, dt);
     // 3. 将四元数转为欧拉角 (用于 OLED 文本显示或 PID)
     float q0 = imu_ekf.q[0], q1 = imu_ekf.q[1], q2 = imu_ekf.q[2], q3 = imu_ekf.q[3];
     
@@ -32,3 +30,4 @@ void Attitude_Update(float dt) {
     imu_attitude.roll  = atan2f(2.0f * (q0 * q1 + q2 * q3), q0 * q0 - q1 * q1 - q2 * q2 + q3 * q3) * 57.29578f;
     imu_attitude.yaw   = atan2f(2.0f * (q1 * q2 + q0 * q3), q0 * q0 + q1 * q1 - q2 * q2 - q3 * q3) * 57.29578f;
 }
+

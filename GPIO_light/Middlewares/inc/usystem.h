@@ -22,6 +22,7 @@
 # include "pwr.h"
 
 # include "attitude.h"
+# include "locate.h"
 # include "pid.h"
 # include "lowpass.h"
 

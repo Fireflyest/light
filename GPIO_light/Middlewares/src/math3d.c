@@ -36,15 +36,6 @@ Quaternion Math3D_QuatFromAxisAngle(Vector3D axis, float angle) {
     return q;
 }
 
-Quaternion Math3D_QuatNormalize(Quaternion q) {
-    float n = 0;
-    arm_sqrt_f32(q.w*q.w + q.x*q.x + q.y*q.y + q.z*q.z, &n);
-    if (n <= 0.0f) return (Quaternion){1,0,0,0};
-    float inv = 1.0f / n;
-    q.w *= inv; q.x *= inv; q.y *= inv; q.z *= inv;
-    return q;
-}
-
 // Fast rotate vector p by quaternion q (uses optimized cross-product form)
 Point3D Math3D_RotateByQuat(Point3D v, Quaternion q) {
     // t = 2 * cross(q_vec, v)
@@ -74,6 +65,46 @@ void Math3D_QuatRotateVector(Vector3D* v, Quaternion* q) {
     v->x = v->x + q->w * tx + cx;
     v->y = v->y + q->w * ty + cy;
     v->z = v->z + q->w * tz + cz;
+}
+
+void Math3D_VectorNormalize(Vector3D* v) {
+    float n = 0;
+    arm_sqrt_f32(v->x*v->x + v->y*v->y + v->z*v->z, &n);
+    if (n <= 0.0f) return;
+    float inv = 1.0f / n;
+    v->x *= inv; v->y *= inv; v->z *= inv;
+    return;
+}
+
+void Math3D_VectorMultiplyScalar(Vector3D* v, float s) {
+    v->x *= s;
+    v->y *= s;
+    v->z *= s;
+}
+
+
+void Math3D_QuatNormalize(Quaternion* q) {
+    float n = 0;
+    arm_sqrt_f32(q->w*q->w + q->x*q->x + q->y*q->y + q->z*q->z, &n);
+    if (n <= 0.0f) return;
+    float inv = 1.0f / n;
+    q->w *= inv; q->x *= inv; q->y *= inv; q->z *= inv;
+    return;
+}
+
+void Math3D_QuatConjugate(Quaternion* q) {
+    q->x = -q->x;
+    q->y = -q->y;
+    q->z = -q->z;
+}
+
+void Math3D_QuatMultiply(Quaternion* q1, Quaternion* q2) {
+    Quaternion result;
+    result.w = q1->w * q2->w - q1->x * q2->x - q1->y * q2->y - q1->z * q2->z;
+    result.x = q1->w * q2->x + q1->x * q2->w + q1->y * q2->z - q1->z * q2->y;
+    result.y = q1->w * q2->y - q1->x * q2->z + q1->y * q2->w + q1->z * q2->x;
+    result.z = q1->w * q2->z + q1->x * q2->y - q1->y * q2->x + q1->z * q2->w;
+    *q1 = result;
 }
 
 Point3D Math3D_RotateX(Point3D p, float angle) {

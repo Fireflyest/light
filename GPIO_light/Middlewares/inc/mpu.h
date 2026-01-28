@@ -93,10 +93,22 @@
 extern uint8_t mpuDataBuffer[14];
 extern uint8_t magDataBuffer[7];
 extern uint8_t bmpDataBuffer[6];
-extern float temperature;
-extern float barometricPressure;
-extern float altitude;
-extern float altitudeLPF;
+
+typedef struct {
+    uint16_t dig_T1;
+    int16_t  dig_T2;
+    int16_t  dig_T3;
+    uint16_t dig_P1;
+    int16_t  dig_P2;
+    int16_t  dig_P3;
+    int16_t  dig_P4;
+    int16_t  dig_P5;
+    int16_t  dig_P6;
+    int16_t  dig_P7;
+    int16_t  dig_P8;
+    int16_t  dig_P9;
+} bmp_calib_t;
+extern bmp_calib_t bmp_calib;
 
 
 void Init_IMU_Hardware(void);

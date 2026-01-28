@@ -6,26 +6,7 @@ uint8_t mpuDataBuffer[14];
 uint8_t magDataBuffer[7];
 uint8_t bmpDataBuffer[6];
 
-typedef struct {
-    uint16_t dig_T1;
-    int16_t  dig_T2;
-    int16_t  dig_T3;
-    uint16_t dig_P1;
-    int16_t  dig_P2;
-    int16_t  dig_P3;
-    int16_t  dig_P4;
-    int16_t  dig_P5;
-    int16_t  dig_P6;
-    int16_t  dig_P7;
-    int16_t  dig_P8;
-    int16_t  dig_P9;
-} bmp_calib_t;
-static bmp_calib_t bmp_calib;
-static int32_t t_fine;
-float temperature;
-float barometricPressure;
-float altitude;
-float altitudeLPF;
+bmp_calib_t bmp_calib;
 
 static void Init_IMU_GPIO(void);
 static void Init_MPU_Hardware(void);
@@ -353,11 +334,6 @@ void Read_BMP_All(void) {
         bmpDataBuffer[i] = spi_transfer_byte(0xFF);
     }
     BMP_SPI_CS_OFF();
-    uint32_t adc_P = ((uint32_t)bmpDataBuffer[0] << 12) | ((uint32_t)bmpDataBuffer[1] << 4) | ((bmpDataBuffer[2] >> 4) & 0x0F);
-    uint32_t adc_T = ((uint32_t)bmpDataBuffer[3] << 12) | ((uint32_t)bmpDataBuffer[4] << 4) | ((bmpDataBuffer[5] >> 4) & 0x0F);
-    BMP_Compensate_T(adc_T);
-    BMP_Compensate_P(adc_P);
-    BMP_GetAltitude();
     #endif // #ifdef COMMUNICATION_TYPE_SPI
     #endif // #ifdef BMP280
 }
@@ -377,39 +353,6 @@ void Read_BMP_Calibration(void) {
     bmp_calib.dig_P7 = (int16_t)(b[19] << 8 | b[18]);
     bmp_calib.dig_P8 = (int16_t)(b[21] << 8 | b[20]);
     bmp_calib.dig_P9 = (int16_t)(b[23] << 8 | b[22]);
-}
-
-void BMP_Compensate_T(int32_t adc_T) {
-    int32_t var1 = ((((adc_T >> 3) - ((int32_t)bmp_calib.dig_T1 << 1))) * ((int32_t)bmp_calib.dig_T2)) >> 11;
-    int32_t var2 = (((((adc_T >> 4) - ((int32_t)bmp_calib.dig_T1)) * ((adc_T >> 4) - ((int32_t)bmp_calib.dig_T1))) >> 12) * ((int32_t)bmp_calib.dig_T3)) >> 14;
-    t_fine = var1 + var2;
-    temperature = ((t_fine * 5 + 128) >> 8) / 100.0f;
-}
-
-void BMP_Compensate_P(int32_t adc_P) {
-    int64_t var1 = (int64_t)t_fine - 128000;
-    int64_t var2 = var1 * var1 * (int64_t)bmp_calib.dig_P6;
-    var2 = var2 + ((var1 * (int64_t)bmp_calib.dig_P5) << 17);
-    var2 = var2 + (((int64_t)bmp_calib.dig_P4) << 35);
-    var1 = ((var1 * var1 * (int64_t)bmp_calib.dig_P3) >> 8) + ((var1 * (int64_t)bmp_calib.dig_P2) << 12);
-    var1 = (((((int64_t)1) << 47) + var1) * (int64_t)bmp_calib.dig_P1) >> 33;
-    if (var1 == 0) return; // avoid div0
-    int64_t p = 1048576 - adc_P;
-    p = (((p << 31) - var2) * 3125) / var1;
-    var1 = (((int64_t)bmp_calib.dig_P9) * (p >> 13) * (p >> 13)) >> 25;
-    var2 = (((int64_t)bmp_calib.dig_P8) * p) >> 19;
-    p = ((p + var1 + var2) >> 8) + (((int64_t)bmp_calib.dig_P7) << 4);
-    barometricPressure = p / 25600.0f + BAROMETERIC_PRESSURE_OFFSET; // convert fixed-point to float Pa
-}
-
-void BMP_GetAltitude() {
-    float T = temperature + 273.15f; 
-    // 0.190263 是 R*L/g 的常数
-    const float EXP = 0.190263f; 
-    
-    // 使用实时温度 T 替代固定常数 44330 (44330 实际上包含了 288.15K 的假设)
-    // 高度 = (T / 0.0065) * (1 - (P/P0)^EXP)
-    altitude = (T / 0.0065f) * (1.0f - powf(barometricPressure / SEA_LEVEL_PRESSURE_HPA, EXP));
 }
 
 void ICM_SelectBank(uint8_t bank) {

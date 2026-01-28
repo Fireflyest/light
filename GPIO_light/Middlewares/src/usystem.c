@@ -56,20 +56,9 @@ void Init_PWM(uint16_t period, uint16_t prescaler) {
 
 void Init_IMU() {
     Init_IMU_Hardware();
-    // long sum[3] = {0, 0, 0};
-    // for(int i = 0; i < 100; i++) {
-    //     Read_IMU_All();
-    //     // 累加陀螺仪原始数据 (ICM-20948 对应索引 6-11)
-    //     sum[0] += (int16_t)((mpuDataBuffer[6] << 8) | mpuDataBuffer[7]);
-    //     sum[1] += (int16_t)((mpuDataBuffer[8] << 8) | mpuDataBuffer[9]);
-    //     sum[2] += (int16_t)((mpuDataBuffer[10] << 8) | mpuDataBuffer[11]);
-    //     delay_ms(5);
-    // }
-    // gyro_offset[0] = (float)sum[0] / 100.0f;
-    // gyro_offset[1] = (float)sum[1] / 100.0f;
-    // gyro_offset[2] = (float)sum[2] / 100.0f;
     delay_ms(50);
-    Kalman_Init(&imu_ekf);
+    Attitude_Kalman_Init(&imu_ekf);
+    Locate_Kalman_Init(&loc_ekf);
 }
 
 void Init_Widgets() {
@@ -244,7 +233,7 @@ void UI_Cube_Draw(UI_Widget* widget) {
 
     // show altitude
     char altLine[20];
-    snprintf(altLine, sizeof(altLine), "Alt: %dm", (int) altitudeLPF);
+    snprintf(altLine, sizeof(altLine), "Alt: %dm", (int) loc_ekf.h);
     GFX_DrawString(72, 0, altLine, GFX_COLOR_WHITE);
 
 }
@@ -322,17 +311,29 @@ void Loop() {
 
         float dt = (uint16_t)(frameStart - lastUpdateTick) / 1000.0f;
         lastUpdateTick = frameStart;
+
         Read_IMU_All();
         Read_BMP_All();
+
         Attitude_Update(dt); 
+        Locate_Update(dt, imu_ekf.q);
 
-        // 低通滤波高度
-        LowPass_Filter(&altitude, &altitudeLPF, 0.1f);
-
-        float rollOutput = PID_Update(&pidRoll, 0.0f, imu_attitude.roll, dt);
-        float pitchOutput = PID_Update(&pidPitch, 0.0f, imu_attitude.pitch, dt);
-        float yawOutput = PID_Update(&pidYaw, 0.0f, imu_attitude.yaw, dt);
-        float heigthOutput = PID_Update(&pidHeight, 0.0f, altitudeLPF, dt);
+        Quaternion q_target_ctrl = {1.0f, 0.0f, 0.0f, 0.0f};
+        Quaternion q_target = q_target_ctrl;
+        Math3D_QuatConjugate(&q_target);
+        Math3D_QuatMultiply(&q_target, (Quaternion*)&imu_ekf.q);
+        float angle = 2.0f * acosf(q_target.w);
+        Vector3D axis;
+        axis.x = q_target.x;
+        axis.y = q_target.y;
+        axis.z = q_target.z;                 
+        Math3D_VectorNormalize(&axis);
+        Math3D_VectorMultiplyScalar(&axis, angle);
+        float rollOutput  = PID_Update(&pidRoll, 0.0f, axis.x, dt);
+        float pitchOutput = PID_Update(&pidPitch, 0.0f, axis.y, dt);
+        float yawOutput   = PID_Update(&pidYaw, 0.0f, axis.z, dt);
+        
+        float heigthOutput = PID_Update(&pidHeight, 20.0f, loc_ekf.h, dt);
         
 
         // 2. 蓝牙命令处理
@@ -412,22 +413,6 @@ void Loop() {
                 # endif
                 pwr_state = PWR_STATE_PREPARE;
             }
-
-
-            // uint8_t clockSource = RCC_GetSYSCLKSource();
-            // if (clockSource == 0x00) {
-            //     // Write_USART1_Data("0", 30);
-            // } else if (clockSource == 0x04) {
-            //     // Write_USART1_Data("0", 30);
-            // } else if (clockSource == 0x08) {
-            //     // Write_USART1_Data("Clock Source: PLL\r\n", 19);
-            //     // 如果是 PLL，需要进一步判断 PLL 的来源
-            //     if (RCC->PLLCFGR & RCC_PLLCFGR_PLLSRC_HSE) {
-            //         Write_USART1_Data("PLL Source: HSE\r\n", 17);
-            //     } else {
-            //         // Write_USART1_Data("PLL Source: HSI\r\n", 17);
-            //     }
-            // }
         }
 
         float throttle = baseThrottle + heigthOutput;
