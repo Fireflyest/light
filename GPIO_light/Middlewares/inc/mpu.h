@@ -96,6 +96,7 @@ extern uint8_t bmpDataBuffer[6];
 extern float temperature;
 extern float barometricPressure;
 extern float altitude;
+extern float altitudeLPF;
 
 
 void Init_IMU_Hardware(void);

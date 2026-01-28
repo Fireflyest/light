@@ -32,6 +32,7 @@ void delay_ms(__IO uint32_t nTime) {
 void Init_USystem() {
     Init_Key();
     Init_LED();
+    Init_PWR();
 }
 
 void Init_Display() {
@@ -55,20 +56,19 @@ void Init_PWM(uint16_t period, uint16_t prescaler) {
 
 void Init_IMU() {
     Init_IMU_Hardware();
-
-    long sum[3] = {0, 0, 0};
-    for(int i = 0; i < 100; i++) {
-        Read_IMU_All();
-        // 累加陀螺仪原始数据 (ICM-20948 对应索引 6-11)
-        sum[0] += (int16_t)((mpuDataBuffer[6] << 8) | mpuDataBuffer[7]);
-        sum[1] += (int16_t)((mpuDataBuffer[8] << 8) | mpuDataBuffer[9]);
-        sum[2] += (int16_t)((mpuDataBuffer[10] << 8) | mpuDataBuffer[11]);
-        delay_ms(5);
-    }
-    gyro_offset[0] = (float)sum[0] / 100.0f;
-    gyro_offset[1] = (float)sum[1] / 100.0f;
-    gyro_offset[2] = (float)sum[2] / 100.0f;
-
+    // long sum[3] = {0, 0, 0};
+    // for(int i = 0; i < 100; i++) {
+    //     Read_IMU_All();
+    //     // 累加陀螺仪原始数据 (ICM-20948 对应索引 6-11)
+    //     sum[0] += (int16_t)((mpuDataBuffer[6] << 8) | mpuDataBuffer[7]);
+    //     sum[1] += (int16_t)((mpuDataBuffer[8] << 8) | mpuDataBuffer[9]);
+    //     sum[2] += (int16_t)((mpuDataBuffer[10] << 8) | mpuDataBuffer[11]);
+    //     delay_ms(5);
+    // }
+    // gyro_offset[0] = (float)sum[0] / 100.0f;
+    // gyro_offset[1] = (float)sum[1] / 100.0f;
+    // gyro_offset[2] = (float)sum[2] / 100.0f;
+    delay_ms(50);
     Kalman_Init(&imu_ekf);
 }
 
@@ -242,6 +242,10 @@ void UI_Cube_Draw(UI_Widget* widget) {
     GFX_DrawString(0, 10, fpsLine, GFX_COLOR_WHITE);
     #endif
 
+    // show altitude
+    char altLine[20];
+    snprintf(altLine, sizeof(altLine), "Alt: %dm", (int) altitudeLPF);
+    GFX_DrawString(72, 0, altLine, GFX_COLOR_WHITE);
 
 }
 # endif
@@ -288,6 +292,8 @@ void System_Update_Task() {
     } else {
         ledTiming = LED_TOGGLE_INTERVAL; 
     }
+
+    PWR_Handle();
 }
 
 
@@ -299,7 +305,14 @@ void Loop() {
 
     const uint16_t TARGET_FRAME_TIME = 10; // 帧间隔
     uint16_t frameStart;
-    
+
+    PID_t pidRoll, pidPitch, pidYaw, pidHeight;
+    pidRoll.kp = 1.0f; pidRoll.ki = 0.0f; pidRoll.kd = 0.1f;
+    pidPitch.kp = 1.0f; pidPitch.ki = 0.0f; pidPitch.kd = 0.1f;
+    pidYaw.kp = 1.0f; pidYaw.ki = 0.0f; pidYaw.kd = 0.1f;
+    pidHeight.kp = 1.0f; pidHeight.ki = 0.0f; pidHeight.kd = 0.1f;
+    float baseThrottle = .0f;
+
     while (1) {
         frameStart = sysTick;
         logicCounter++; // 每次循环增加程序 FPS 计数
@@ -313,6 +326,14 @@ void Loop() {
         Read_BMP_All();
         Attitude_Update(dt); 
 
+        // 低通滤波高度
+        LowPass_Filter(&altitude, &altitudeLPF, 0.1f);
+
+        float rollOutput = PID_Update(&pidRoll, 0.0f, imu_attitude.roll, dt);
+        float pitchOutput = PID_Update(&pidPitch, 0.0f, imu_attitude.pitch, dt);
+        float yawOutput = PID_Update(&pidYaw, 0.0f, imu_attitude.yaw, dt);
+        float heigthOutput = PID_Update(&pidHeight, 0.0f, altitudeLPF, dt);
+        
 
         // 2. 蓝牙命令处理
         uint8_t commandBuffer[RX_BUFFER_SIZE] = {0};
@@ -366,7 +387,7 @@ void Loop() {
             logicCounter = 0;
             lastTime = now;
         }
-        # endif
+        # endif // DISPLAY_ENABLE
 
         if (Key_PressConsume()) {
             char pwm_status[64];
@@ -380,6 +401,17 @@ void Loop() {
             # endif
 
             currentState = STATE_CUBE;
+            // currentState = STATE_MPU;
+
+            if (pwr_state == PWR_STATE_DISABLE) {
+                Write_USART1_Data("PWR: ", PWR_GetPercentage());
+                # ifdef DISPLAY_ENABLE
+                char pwr_status[64];
+                sprintf(pwr_status, "PWR, %d%%", PWR_GetPercentage());
+                UI_Logger_AddLine(&logWindow, pwr_status);
+                # endif
+                pwr_state = PWR_STATE_PREPARE;
+            }
 
 
             // uint8_t clockSource = RCC_GetSYSCLKSource();
@@ -398,14 +430,11 @@ void Loop() {
             // }
         }
 
-        static int pwm_var = 0;
-        if (pwm_var >= 50) pwm_var = 0;
-        pwm_var += 10;
-        pwmDutyBuffer[0] = Map_Percent_To_Real(pwm_var);
-        pwmDutyBuffer[1] = Map_Percent_To_Real(pwm_var);
-        pwmDutyBuffer[2] = Map_Percent_To_Real(pwm_var);
-        pwmDutyBuffer[3] = Map_Percent_To_Real(pwm_var);
-
+        float throttle = baseThrottle + heigthOutput;
+        pwmDutyBuffer[0] = Map_Percent_To_Real((uint16_t) (throttle + pitchOutput + rollOutput + yawOutput));
+        pwmDutyBuffer[1] = Map_Percent_To_Real((uint16_t) (throttle + pitchOutput - rollOutput - yawOutput));
+        pwmDutyBuffer[2] = Map_Percent_To_Real((uint16_t) (throttle - pitchOutput + rollOutput - yawOutput));
+        pwmDutyBuffer[3] = Map_Percent_To_Real((uint16_t) (throttle - pitchOutput - rollOutput + yawOutput));
 
         // static char dida[16];
         // sprintf(dida, "0%d%d", 1, 0);

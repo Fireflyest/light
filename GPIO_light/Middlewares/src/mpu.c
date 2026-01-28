@@ -25,6 +25,7 @@ static int32_t t_fine;
 float temperature;
 float barometricPressure;
 float altitude;
+float altitudeLPF;
 
 static void Init_IMU_GPIO(void);
 static void Init_MPU_Hardware(void);

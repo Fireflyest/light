@@ -3,16 +3,16 @@
 #include "kalman.h"
 #include <math.h>
 
-float gyro_offset[3] = {0, 0, 0};
+float gyro_offset[3];
 
 Attitude_t imu_attitude;
 Kalman_EKF_t imu_ekf;
 
 void Attitude_Update(float dt) {
     // 1. 获取物理单位数据 (以 dps 和 g 为单位)
-    float gx = ((int16_t)((mpuDataBuffer[6] << 8) | mpuDataBuffer[7]) - gyro_offset[0]) / 16.4f;
-    float gy = ((int16_t)((mpuDataBuffer[8] << 8) | mpuDataBuffer[9]) - gyro_offset[1]) / 16.4f;
-    float gz = ((int16_t)((mpuDataBuffer[10] << 8) | mpuDataBuffer[11]) - gyro_offset[2]) / 16.4f;
+    float gx = ((int16_t)((mpuDataBuffer[6] << 8) | mpuDataBuffer[7])) / 16.4f;
+    float gy = ((int16_t)((mpuDataBuffer[8] << 8) | mpuDataBuffer[9])) / 16.4f;
+    float gz = ((int16_t)((mpuDataBuffer[10] << 8) | mpuDataBuffer[11])) / 16.4f;
 
     float ax = (int16_t)((mpuDataBuffer[0] << 8) | mpuDataBuffer[1]) / 4096.0f;
     float ay = (int16_t)((mpuDataBuffer[2] << 8) | mpuDataBuffer[3]) / 4096.0f;

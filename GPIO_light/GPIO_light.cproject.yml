@@ -97,6 +97,10 @@ project:
         - file: ./Middlewares/src/kalman.c
         - file: ./Middlewares/inc/attitude.h
         - file: ./Middlewares/src/attitude.c
+        - file: ./Middlewares/inc/pid.h
+        - file: ./Middlewares/src/pid.c
+        - file: ./Middlewares/inc/lowpass.h
+        - file: ./Middlewares/src/lowpass.c
         - file: ./Middlewares/display/bmp.h
         - file: ./Middlewares/display/bmp.c
         - file: ./Middlewares/display/font.h
