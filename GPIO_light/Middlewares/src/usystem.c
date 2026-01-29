@@ -16,7 +16,9 @@ static void UI_Cube_Draw(UI_Widget* widget);
 static void UI_Pid_Draw(UI_Widget* widget);
 # endif
 
-float rollOutput, pitchOutput, yawOutput;
+__IO uint32_t marker = 1;
+static void Save_Bias_Quaternion_To_Flash(Quaternion* q);
+static void Load_Bias_Quaternion_From_Flash(Quaternion* q);
 
 typedef enum { 
     STATE_NONE,
@@ -26,6 +28,12 @@ typedef enum {
     STATE_CUBE
 } AppState;
 AppState currentState;
+
+
+float rollOutput, pitchOutput, yawOutput;
+Quaternion q_bias = {1.0f, 0.0f, 0.0f, 0.0f};
+#define FLASH_BIAS_ADDR  ((uint32_t)0x0803E000)
+
 
 void delay_ms(__IO uint32_t nTime) {
     uint32_t start = sysTick;
@@ -47,7 +55,7 @@ void Init_Display() {
     # endif
 }
 
-void Init_USART(uint16_t baudrate) {
+void Init_USART(uint32_t baudrate) {
     Init_DMA_For_USART1_RX(rxBufferUart1, sizeof(rxBufferUart1));
     Init_DMA_For_USART1_TX(txBufferUart1);
     Init_USART1(baudrate);
@@ -59,6 +67,7 @@ void Init_PWM(uint16_t period, uint16_t prescaler) {
 }
 
 void Init_IMU() {
+    Load_Bias_Quaternion_From_Flash(&q_bias);
     Init_IMU_Hardware();
     delay_ms(50);
     Attitude_Kalman_Init(&imu_ekf);
@@ -217,19 +226,29 @@ void UI_Pid_Draw(UI_Widget* widget) {
             pidErrorHistory[i][w - 1] = errors[i];
     }
 
-    // 归一化到屏幕高度
-    float maxAbs = 1e-3f;
+    static float globalScale = 0.1f; // 初始可视化幅度（单位与误差一致）
+    float curMax = 1e-6f;
     for (int i = 0; i < 3; i++)
         for (int j = 0; j < pidErrorLen; j++)
-            if (fabsf(pidErrorHistory[i][j]) > maxAbs)
-                maxAbs = fabsf(pidErrorHistory[i][j]);
+            if (fabsf(pidErrorHistory[i][j]) > curMax)
+                curMax = fabsf(pidErrorHistory[i][j]);
+
+    // 快速增长，缓慢衰减（调整下方因子以改变响应/回落速度）
+    if (curMax > globalScale) {
+        globalScale = curMax;
+    } else {
+        globalScale *= 0.995f; // 0.995 => 0.5x 需要约 ln(0.5)/ln(0.995) 帧数
+        if (globalScale < 1e-3f) globalScale = 1e-3f; // 下限保护
+    }
+
+    float scale = globalScale;
 
     // 画三条线（逐点画像素）
     for (int i = 0; i < 3; i++) {
         uint16_t color = GFX_COLOR_WHITE;
-        int lastY = y0 - (int)(pidErrorHistory[i][0] / maxAbs * (h / 2));
+        int lastY = y0 - (int)(pidErrorHistory[i][0] / scale * (h / 2));
         for (int j = 1; j < pidErrorLen; j++) {
-            int y = y0 - (int)(pidErrorHistory[i][j] / maxAbs * (h / 2));
+            int y = y0 - (int)(pidErrorHistory[i][j] / scale * (h / 2));
             GFX_Line_Style style = i == 0 ? GFX_LINE_STYLE_THICK_2PX :
                                   (i == 1 ? GFX_LINE_STYLE_ALTERNATE_2_1PX : GFX_LINE_STYLE_SINGLE_PIXEL);
             GFX_DrawLineStyled(x0 + j - 1, lastY, x0 + j, y, color, style);
@@ -246,10 +265,10 @@ void UI_Cube_Draw(UI_Widget* widget) {
     Vector3D halfExtent = { 20.0f, 20.0f, 20.0f }; // larger half-size for clearer view
 
     Quaternion q;
-    q.w = imu_ekf.q[0];
-    q.x = -imu_ekf.q[1]; // 取负号即为共轭 (Inverse rotation)
-    q.y = -imu_ekf.q[2];
-    q.z = -imu_ekf.q[3];
+    q.w = imu_ekf.q_corr[0];
+    q.x = -imu_ekf.q_corr[1]; // 取负号即为共轭 (Inverse rotation)
+    q.y = -imu_ekf.q_corr[2];
+    q.z = -imu_ekf.q_corr[3];
 
     GFX3D_DrawCube(&center, &halfExtent, &q, GFX_COLOR_WHITE);
 
@@ -375,13 +394,13 @@ void Loop() {
         Read_IMU_All();
         Read_BMP_All();
 
-        Attitude_Update(dt); 
-        Locate_Update(dt, imu_ekf.q);
+        Attitude_Update(dt, &q_bias); 
+        Locate_Update(dt, imu_ekf.q_corr);
 
         Quaternion q_target_ctrl = {1.0f, 0.0f, 0.0f, 0.0f};
         Quaternion q_target = q_target_ctrl;
         Math3D_QuatConjugate(&q_target);
-        Math3D_QuatMultiply(&q_target, (Quaternion*)&imu_ekf.q);
+        Math3D_QuatMultiply(&q_target, (Quaternion*)&imu_ekf.q_corr);
         float angle = 2.0f * acosf(q_target.w);
         Vector3D axis;
         axis.x = q_target.x;
@@ -461,9 +480,20 @@ void Loop() {
             UI_Logger_AddLine(&logWindow, (char*)pwm_status);
             # endif
 
+            if (currentState == STATE_PID) {
+                Quaternion q_target = {1.0f, 0.0f, 0.0f, 0.0f}; // 理想水平
+                Quaternion* q_current = (Quaternion*)&imu_ekf.q;
+                Quaternion q_current_conj = *q_current;
+                Math3D_QuatConjugate(&q_current_conj);
+                Math3D_QuatMultiply(&q_target, &q_current_conj); // q_target = q_target * q_current_conj
+                q_bias = q_target;
+                Save_Bias_Quaternion_To_Flash(&q_bias);
+            }
+
             // currentState = STATE_CUBE;
             // currentState = STATE_MPU;
             currentState = STATE_PID;
+
 
             if (pwr_state == PWR_STATE_DISABLE) {
                 Write_USART1_Data("PWR: ", PWR_GetPercentage());
@@ -494,4 +524,40 @@ void Loop() {
             delay_ms(TARGET_FRAME_TIME - frameTime);
         }
     }
+
+}
+
+
+void Save_Bias_Quaternion_To_Flash(Quaternion* q) {
+    // 擦除和写入4*float
+    FLASH_Unlock();
+    uint32_t sector = FLASH_Sector_5;
+    FLASH_EraseSector(sector, VoltageRange_3);
+
+    FLASH_ProgramWord(FLASH_BIAS_ADDR + 0 * 4, *((uint32_t*)&marker));
+
+    FLASH_ProgramWord(FLASH_BIAS_ADDR + 1 * 4, *((uint32_t*)&q->w));
+    FLASH_ProgramWord(FLASH_BIAS_ADDR + 2 * 4, *((uint32_t*)&q->x));
+    FLASH_ProgramWord(FLASH_BIAS_ADDR + 3 * 4, *((uint32_t*)&q->y));
+    FLASH_ProgramWord(FLASH_BIAS_ADDR + 4 * 4, *((uint32_t*)&q->z));
+
+    FLASH_Lock();
+}
+
+void Load_Bias_Quaternion_From_Flash(Quaternion* q) {
+    uint32_t* udata = (uint32_t*)FLASH_BIAS_ADDR;
+    if (udata[0] == marker) {
+        uint32_t wb = udata[1], xb = udata[2], yb = udata[3], zb = udata[4];
+        memcpy(&q->w, &wb, sizeof(q->w));
+        memcpy(&q->x, &xb, sizeof(q->x));
+        memcpy(&q->y, &yb, sizeof(q->y));
+        memcpy(&q->z, &zb, sizeof(q->z));
+        float norm = sqrtf(q->w*q->w + q->x*q->x + q->y*q->y + q->z*q->z);
+        if (!isfinite(norm) || norm < 0.5f || norm > 2.0f) {
+            q->w = 1.0f; q->x = q->y = q->z = 0.0f;
+        }
+    }
+    char buf[64];
+    sprintf(buf, "Flash: %d, %d, %d, %d, %d", (int)udata[0], (int)udata[1], (int)udata[2], (int)udata[3], (int)udata[4]);
+    UI_Logger_AddLine(&logWindow, buf);
 }

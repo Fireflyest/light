@@ -6,6 +6,8 @@
 typedef struct {
     float32_t q[4];      // 状态向量：四元数 [q0, q1, q2, q3]
     float32_t bias[3];   // 陀螺仪零偏 [bx, by, bz]
+
+    float32_t q_corr[4];  // 校正后的四元数
     
     // 协方差矩阵使用 arm_matrix 结构
     float32_t P_data[49]; 

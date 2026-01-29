@@ -33,7 +33,7 @@ int main() {
     UI_Logger_Init(&logWindow, 0, 0, 127, 60);
     # endif
 
-    Init_USART(BUADRATE_115200);                  // USART1 初始化函数
+    Init_USART(BAUDRATE_115200);                  // USART1 初始化函数
 
     # ifdef DISPLAY_ENABLE
     UI_Logger_AddLine(&logWindow, "UART Init OK");

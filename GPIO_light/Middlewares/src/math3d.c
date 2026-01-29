@@ -107,6 +107,17 @@ void Math3D_QuatMultiply(Quaternion* q1, Quaternion* q2) {
     *q1 = result;
 }
 
+void Math3D_QuatMultiply_f32(float q1[4], const float q2[4]) {
+    float w = q1[0] * q2[0] - q1[1] * q2[1] - q1[2] * q2[2] - q1[3] * q2[3];
+    float x = q1[0] * q2[1] + q1[1] * q2[0] + q1[2] * q2[3] - q1[3] * q2[2];
+    float y = q1[0] * q2[2] - q1[1] * q2[3] + q1[2] * q2[0] + q1[3] * q2[1];
+    float z = q1[0] * q2[3] + q1[1] * q2[2] - q1[2] * q2[1] + q1[3] * q2[0];
+    q1[0] = w;
+    q1[1] = x;
+    q1[2] = y;
+    q1[3] = z;
+}
+
 Point3D Math3D_RotateX(Point3D p, float angle) {
     Point3D newP;
     float c = arm_cos_f32(angle);

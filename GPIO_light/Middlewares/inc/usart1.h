@@ -4,8 +4,8 @@
 # include "stm32f4xx.h"
 # include <string.h>
 
-# define BUADRATE_9600      9600
-# define BUADRATE_115200    115200
+# define BAUDRATE_9600      ((uint32_t)9600)
+# define BAUDRATE_115200    ((uint32_t)115200)
 
 # define RX_BUFFER_SIZE     64
 # define TX_BUFFER_SIZE     64

@@ -37,6 +37,7 @@ void Math3D_QuatNormalize(Quaternion* q);
 void Math3D_QuatRotateVector(Vector3D* v, Quaternion* q);
 void Math3D_QuatConjugate(Quaternion* q);
 void Math3D_QuatMultiply(Quaternion* q1, Quaternion* q2);
+void Math3D_QuatMultiply_f32(float q1[4], const float q2[4]);
 
 
 
