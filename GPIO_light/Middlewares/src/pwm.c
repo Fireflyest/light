@@ -1,4 +1,5 @@
 # include "pwm.h"
+# include <math.h>
 
 uint16_t pwmDutyBuffer[4] = {0, 0, 0, 0};
 
@@ -58,7 +59,6 @@ void Init_PWM_TIM(uint16_t period, uint16_t prescaler) {
 }
 
 uint16_t Map_Percent_To_Real(uint16_t percent) {
-    if (percent < 0) percent = 0;
-    if (percent > 100) percent = 100;
+    percent = fminf(fmaxf((float)percent, 0.0f), 100.0f);
     return PWM_MIN_REAL + (PWM_MAX_REAL - PWM_MIN_REAL) * percent / 100;
 }

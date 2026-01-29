@@ -2,6 +2,7 @@
 #include "mpu.h"
 
 
+LowPass_Filter_t tempFilt, pressFilt;
 Locate_Kalman_EKF_t loc_ekf;
 
 float temperature;
@@ -9,16 +10,30 @@ float barometricPressure;
 float altitude;
 
 static int32_t t_fine;
+static uint8_t lowPassInited = 0;
 
 static void BMP_Compensate_T(int32_t adc_T);
 static void BMP_Compensate_P(int32_t adc_P);
 static void BMP_GetAltitude();
+
 
 void Locate_Update(float dt, float32_t q[4]) {
     uint32_t adc_P = ((uint32_t)bmpDataBuffer[0] << 12) | ((uint32_t)bmpDataBuffer[1] << 4) | ((bmpDataBuffer[2] >> 4) & 0x0F);
     uint32_t adc_T = ((uint32_t)bmpDataBuffer[3] << 12) | ((uint32_t)bmpDataBuffer[4] << 4) | ((bmpDataBuffer[5] >> 4) & 0x0F);
     BMP_Compensate_T(adc_T);
     BMP_Compensate_P(adc_P);
+
+    if (!lowPassInited) {
+        LowPass_Filter_Init(&tempFilt, 1.0f, temperature);
+        LowPass_Filter_Init(&pressFilt, 1.0f, barometricPressure);
+        lowPassInited = 1;
+    }
+
+    LowPass_UpdateWithTau(&tempFilt, temperature, TEMP_TAU, dt);
+    temperature = tempFilt.output;
+    LowPass_UpdateWithTau(&pressFilt, barometricPressure, PRESS_TAU, dt);
+    barometricPressure = pressFilt.output;
+
     BMP_GetAltitude();
 
     // 获取加速度

@@ -8,6 +8,7 @@ typedef struct {
     float32_t bias[3];   // 陀螺仪零偏 [bx, by, bz]
 
     float32_t q_corr[4];  // 校正后的四元数
+    float32_t gyro_corr[3]; // 校正后的角速度
     
     // 协方差矩阵使用 arm_matrix 结构
     float32_t P_data[49]; 

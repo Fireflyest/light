@@ -103,6 +103,8 @@ project:
         - file: ./Middlewares/src/pid.c
         - file: ./Middlewares/inc/lowpass.h
         - file: ./Middlewares/src/lowpass.c
+        - file: ./Middlewares/inc/control.h
+        - file: ./Middlewares/src/control.c
         - file: ./Middlewares/display/bmp.h
         - file: ./Middlewares/display/bmp.c
         - file: ./Middlewares/display/font.h

@@ -16,7 +16,7 @@ typedef enum {
 
 typedef enum {
     GFX_LINE_STYLE_SINGLE_PIXEL,    // 单像素线
-    GFX_LINE_STYLE_THICK_2PX,       // 2像素粗线
+    GFX_LINE_STYLE_THICK_DOT,       // 2像素粗线
     GFX_LINE_STYLE_ALTERNATE_2_1PX  // 2像素宽和1像素宽交替
 } GFX_Line_Style;
 

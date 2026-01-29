@@ -34,21 +34,23 @@ int main() {
     # endif
 
     Init_USART(BAUDRATE_115200);                  // USART1 初始化函数
-
     # ifdef DISPLAY_ENABLE
     UI_Logger_AddLine(&logWindow, "UART Init OK");
     # endif
     
     Init_PWM(PWM_PERIOD, PWM_PRESCALER);        // PWM 初始化函数
-
     # ifdef DISPLAY_ENABLE
     UI_Logger_AddLine(&logWindow, "PWM Init OK");
     # endif
 
     Init_IMU();                               // IMU 初始化函数
-
     # ifdef DISPLAY_ENABLE
     UI_Logger_AddLine(&logWindow, "IMU Init OK");
+    # endif
+
+    Init_Control();                               // 控制初始化函数
+    # ifdef DISPLAY_ENABLE
+    UI_Logger_AddLine(&logWindow, "Control Init OK");
     # endif
 
     Init_Widgets();
@@ -57,5 +59,5 @@ int main() {
     UI_Logger_AddLine(&logWindow, "Press Key to Start");
     # endif
 
-    Loop();
+    Start();
 }

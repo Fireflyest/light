@@ -19,6 +19,8 @@ static void UI_Pid_Draw(UI_Widget* widget);
 __IO uint32_t marker = 1;
 static void Save_Bias_Quaternion_To_Flash(Quaternion* q);
 static void Load_Bias_Quaternion_From_Flash(Quaternion* q);
+Quaternion q_bias = {1.0f, 0.0f, 0.0f, 0.0f};
+#define FLASH_BIAS_ADDR  ((uint32_t)0x0803E000)
 
 typedef enum { 
     STATE_NONE,
@@ -28,11 +30,6 @@ typedef enum {
     STATE_CUBE
 } AppState;
 AppState currentState;
-
-
-float rollOutput, pitchOutput, yawOutput;
-Quaternion q_bias = {1.0f, 0.0f, 0.0f, 0.0f};
-#define FLASH_BIAS_ADDR  ((uint32_t)0x0803E000)
 
 
 void delay_ms(__IO uint32_t nTime) {
@@ -72,6 +69,20 @@ void Init_IMU() {
     delay_ms(50);
     Attitude_Kalman_Init(&imu_ekf);
     Locate_Kalman_Init(&loc_ekf);
+}
+
+void Init_Control() {
+    pidRoll.kp = 4.0f; pidRoll.ki = 0.0f; pidRoll.kd = 0.2f;
+    pidPitch.kp = 4.0f; pidPitch.ki = 0.0f; pidPitch.kd = 0.2f;
+    pidYaw.kp = 2.0f; pidYaw.ki = 0.0f; pidYaw.kd = 0.1f;
+    pidHeight.kp = 1.0f; pidHeight.ki = 0.0f; pidHeight.kd = 0.1f;
+
+    pidRateRoll.kp = 0.15f; pidRateRoll.ki = 0.001f; pidRateRoll.kd = 0.002f;
+    pidRatePitch.kp = 0.15f; pidRatePitch.ki = 0.001f; pidRatePitch.kd = 0.002f;
+    pidRateYaw.kp = 0.10f; pidRateYaw.ki = 0.0005f; pidRateYaw.kd = 0.001f;
+
+    // 启动内环定时器（1kHz）
+    RateControl_Init(RATE_LOOP_HZ);
 }
 
 void Init_Widgets() {
@@ -211,7 +222,11 @@ void UI_Pid_Draw(UI_Widget* widget) {
     int h = widget->h - 4;
 
     // 获取当前误差
-    float errors[3] = { rollOutput, pitchOutput, yawOutput };
+    float errors[3] = {
+        (rateSetRoll - gyroFilt[0].output) * RAD2DEG, 
+        (rateSetPitch - gyroFilt[1].output) * RAD2DEG, 
+        (rateSetYaw - gyroFilt[2].output) * RAD2DEG
+    };
 
     // 更新历史
     if (pidErrorLen < w) {
@@ -249,7 +264,7 @@ void UI_Pid_Draw(UI_Widget* widget) {
         int lastY = y0 - (int)(pidErrorHistory[i][0] / scale * (h / 2));
         for (int j = 1; j < pidErrorLen; j++) {
             int y = y0 - (int)(pidErrorHistory[i][j] / scale * (h / 2));
-            GFX_Line_Style style = i == 0 ? GFX_LINE_STYLE_THICK_2PX :
+            GFX_Line_Style style = i == 0 ? GFX_LINE_STYLE_THICK_DOT :
                                   (i == 1 ? GFX_LINE_STYLE_ALTERNATE_2_1PX : GFX_LINE_STYLE_SINGLE_PIXEL);
             GFX_DrawLineStyled(x0 + j - 1, lastY, x0 + j, y, color, style);
             lastY = y;
@@ -365,7 +380,7 @@ void System_Update_Task() {
 }
 
 
-void Loop() {
+void Start() {
     uint16_t logicCounter = 0;    // 程序循环计数
     uint16_t displayCounter = 0;  // 屏幕刷新计数
     uint16_t lastTime = sysTick;
@@ -374,14 +389,7 @@ void Loop() {
     const uint16_t TARGET_FRAME_TIME = 10; // 帧间隔
     uint16_t frameStart;
 
-    PID_t pidRoll, pidPitch, pidYaw, pidHeight;
-    pidRoll.kp = 1.0f; pidRoll.ki = 0.0f; pidRoll.kd = 0.1f;
-    pidPitch.kp = 1.0f; pidPitch.ki = 0.0f; pidPitch.kd = 0.1f;
-    pidYaw.kp = 1.0f; pidYaw.ki = 0.0f; pidYaw.kd = 0.1f;
-    pidHeight.kp = 1.0f; pidHeight.ki = 0.0f; pidHeight.kd = 0.1f;
-    float baseThrottle = .0f;
-
-    while (1) {
+    for (;;) {
         frameStart = sysTick;
         logicCounter++; // 每次循环增加程序 FPS 计数
 
@@ -408,12 +416,12 @@ void Loop() {
         axis.z = q_target.z;                 
         Math3D_VectorNormalize(&axis);
         Math3D_VectorMultiplyScalar(&axis, angle);
-        rollOutput  = PID_Update(&pidRoll, 0.0f, axis.x, dt);
-        pitchOutput = PID_Update(&pidPitch, 0.0f, axis.y, dt);
-        yawOutput   = PID_Update(&pidYaw, 0.0f, axis.z, dt);
+        rateSetRoll  = PID_Update(&pidRoll, 0.0f, axis.x, dt);
+        rateSetPitch = PID_Update(&pidPitch, 0.0f, axis.y, dt);
+        rateSetYaw   = PID_Update(&pidYaw, 0.0f, axis.z, dt);
         
         float heigthOutput = PID_Update(&pidHeight, 20.0f, loc_ekf.h, dt);
-        
+        thrustOutput = baseThrottle + heigthOutput;
 
         // 2. 蓝牙命令处理
         uint8_t commandBuffer[RX_BUFFER_SIZE] = {0};
@@ -506,12 +514,6 @@ void Loop() {
             }
         }
 
-        float throttle = baseThrottle + heigthOutput;
-        pwmDutyBuffer[0] = Map_Percent_To_Real((uint16_t) (throttle + pitchOutput + rollOutput + yawOutput));
-        pwmDutyBuffer[1] = Map_Percent_To_Real((uint16_t) (throttle + pitchOutput - rollOutput - yawOutput));
-        pwmDutyBuffer[2] = Map_Percent_To_Real((uint16_t) (throttle - pitchOutput + rollOutput - yawOutput));
-        pwmDutyBuffer[3] = Map_Percent_To_Real((uint16_t) (throttle - pitchOutput - rollOutput + yawOutput));
-
         // static char dida[16];
         // sprintf(dida, "0%d%d", 1, 0);
         // Write_USART1_Data(dida, strlen(dida));
@@ -558,6 +560,60 @@ void Load_Bias_Quaternion_From_Flash(Quaternion* q) {
         }
     }
     char buf[64];
-    sprintf(buf, "Flash: %d, %d, %d, %d, %d", (int)udata[0], (int)udata[1], (int)udata[2], (int)udata[3], (int)udata[4]);
+    sprintf(buf, "Flash marker %d", (int)udata[0]);
     UI_Logger_AddLine(&logWindow, buf);
 }
+
+
+
+// 建立双环控制（必须）
+// 为什么：内环角速率控制更快、更稳定；外环姿态控制生成角速设定。
+// 改动点：新增高频定时中断（1kHz）做内环 Rate PID，主循环（100Hz）做姿态外环 P/PI 输出 rate_setpoint。
+// 文件/位置建议：新增 control.c/timerISR 或在现有 systick handler 中加入定时器回调；把 Attitude->rate conversion 放到 Start() 的姿态处理处。
+// 测试：在地面固定机臂 -> 给 step pitch setpoint，观察 gyro rate 跟随与电机响应。
+
+// 确保 PID 保持状态并实现 anti-windup（必须）
+// 为什么：当前没有积分保持会导致I项失效；防止饱和时积分发散。
+// 改动点：PID 结构加入 integrator、integrator_limit、last_error、D滤波；PID_Update 在输出饱和时停止/反向积分。
+// 文件：pid.c / usystem.c PID_Init 初始化限幅。
+// 测试：长时间施加偏差，观察 I 不发散且恢复正常。
+
+// 用陀螺仪做内环反馈并对 gyro 做小 LPF（重要）
+// 为什么：D项直接用 noisy gyro 会放大噪声；内环直接反馈角速。
+// 改动点：对 gyro 做一阶 IIR（α~0.3-0.6），D 在差分前加小滤波或用 PT1。
+// 测试：在地面抖动/敲击机臂，观测内环抖动程度。
+
+// 限幅与混控饱和处理（必须）
+// 为什么：防止单电机饱和导致失控，保持相对差值。
+// 改动点：做 motor mixing 后检测 max/min，超出按比例缩放或优先保留 throttle（策略可选）。
+// 代码片段：见下方“混控缩放”示例。
+// 测试：全油门+roll大偏差，检查缩放是否合理且四电机未溢出。
+
+// 时间步 dt 严格一致（必须）
+// 为什么：PID、积分均依赖准确 dt。
+// 改动点：内环用定时器的固定 dt；外环用主循环 dt。不要把 sysTick 差值作为混合 dt。
+// 测试：打印每次 PID 调用的 dt 是否恒定。
+
+// 输出平滑与低通（重要）
+// 为什么：PWM（ESC）对高频指令无法跟随，直接传高频会振动。
+// 改动点：对最终 motor command 做小一阶滤波（例如 α=0.2）。
+// 测试：step 输入并观察 PWM 曲线是否平滑。
+
+// 安全与状态机（必须）
+// 为什么：断电、未解锁时防止电机转动；需要 ARM/DISARM。
+// 改动点：引入 arming flag，按键/遥控安全逻辑，在未ARM时强制 PWM=MIN、PID 不积分。
+// 测试：上电、未 ARM，推油门无反应；ARM 后解除限制并能控制。
+
+// 建议：先调内环 Rate P（增益到稳定点），再调 Rate D，最后外环姿态 P、小 I。记录 step response。
+// 提示值（起点，仅供调试）：
+// Rate P: 0.1–1.0 (以角速度单位)
+// Rate D: 0.005–0.05
+// Attitude P: 4–8（你当前4可保留做逐步调整）
+
+// telemetry/logging（重要）
+// 为什么：没有日志难以定位振动点/不稳定频率。
+// 改动点：在内环定时 ISR 中每间隔 N 次推送 key telemetry（gyro, rate_setpoint, motor[]）到串口或环形buffer。
+
+// ESC/Throttle 线性化 与 电池电压补偿（可选）
+// 为什么：电压下降时推力变化，需补偿。
+// 改动点：在 Map_Percent_To_Real 前乘电压系数。

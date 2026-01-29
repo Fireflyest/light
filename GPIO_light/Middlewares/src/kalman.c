@@ -3,6 +3,7 @@
 void Attitude_Kalman_Init(Attitude_Kalman_EKF_t *ekf) {
     ekf->q[0] = 1.0f; ekf->q[1] = 0.0f; ekf->q[2] = 0.0f; ekf->q[3] = 0.0f;
     ekf->bias[0] = 0.0f; ekf->bias[1] = 0.0f; ekf->bias[2] = 0.0f;
+    ekf->gyro_corr[0] = 0.0f; ekf->gyro_corr[1] = 0.0f; ekf->gyro_corr[2] = 0.0f;
     
     ekf->Q_angle = 0.001f;
     ekf->Q_gyro = 0.003f;
@@ -50,7 +51,7 @@ void Attitude_Kalman_Update(Attitude_Kalman_EKF_t *ekf, float32_t gx, float32_t 
     // 如果不使用磁力计，ez 此时只能由重力纠正，而重力对 Z 轴旋转不降噪
     norm = 1.0f / sqrtf(mx*mx + my*my + mz*mz);
     mx *= norm; my *= norm; mz *= norm;
-    
+
     // 旋转四元数后地磁预测方向
     float32_t hx = 2.0f * (mx * (0.5f - q2*q2 - q3*q3) + my * (q1*q2 - q0*q3) + mz * (q1*q3 + q0*q2));
     float32_t hy = 2.0f * (mx * (q1*q2 + q0*q3) + my * (0.5f - q1*q1 - q3*q3) + mz * (q2*q3 - q0*q1));
@@ -80,15 +81,15 @@ void Attitude_Kalman_Update(Attitude_Kalman_EKF_t *ekf, float32_t gx, float32_t 
     ekf->bias[1] -= Ki * ey;
     ekf->bias[2] -= Ki * ez;
 
-    gx = gx - ekf->bias[0] + Kp * ex;
-    gy = gy - ekf->bias[1] + Kp * ey;
-    gz = gz - ekf->bias[2] + Kp * ez;
+    ekf->gyro_corr[0] = gx - ekf->bias[0] + Kp * ex;
+    ekf->gyro_corr[1] = gy - ekf->bias[1] + Kp * ey;
+    ekf->gyro_corr[2] = gz - ekf->bias[2] + Kp * ez;
 
     // 更新四元数 (一阶龙格库塔)
-    ekf->q[0] += 0.5f * (-q1 * gx - q2 * gy - q3 * gz) * dt;
-    ekf->q[1] += 0.5f * ( q0 * gx + q2 * gz - q3 * gy) * dt;
-    ekf->q[2] += 0.5f * ( q0 * gy - q1 * gz + q3 * gx) * dt;
-    ekf->q[3] += 0.5f * ( q0 * gz + q1 * gy - q2 * gx) * dt;
+    ekf->q[0] += 0.5f * (-q1 * ekf->gyro_corr[0] - q2 * ekf->gyro_corr[1] - q3 * ekf->gyro_corr[2]) * dt;
+    ekf->q[1] += 0.5f * ( q0 * ekf->gyro_corr[0] + q2 * ekf->gyro_corr[2] - q3 * ekf->gyro_corr[1]) * dt;
+    ekf->q[2] += 0.5f * ( q0 * ekf->gyro_corr[1] - q1 * ekf->gyro_corr[2] + q3 * ekf->gyro_corr[0]) * dt;
+    ekf->q[3] += 0.5f * ( q0 * ekf->gyro_corr[2] + q1 * ekf->gyro_corr[1] - q2 * ekf->gyro_corr[0]) * dt;
 
     // 必须归一化
     norm = 1.0f / sqrtf(ekf->q[0]*ekf->q[0] + ekf->q[1]*ekf->q[1] + ekf->q[2]*ekf->q[2] + ekf->q[3]*ekf->q[3]);

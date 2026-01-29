@@ -35,8 +35,8 @@ uint8_t GFX_Update(void) {
 
         #ifdef SYNC_FPS_TO_SCREEN_REFRESH
         // Wait for DMA to complete before proceeding to next page
-        uint8_t timeout;
-        for (timeout = 0xFF; timeout > 0 && OLED_IsDMABusy(); timeout--);
+        uint16_t timeout;
+        for (timeout = 0x0FFF; timeout > 0 && OLED_IsDMABusy(); timeout--);
         #endif
     }
     return 1; // Update started
@@ -70,14 +70,12 @@ void GFX_DrawLineStyled(int x0, int y0, int x1, int y1, GFX_Color color, GFX_Lin
     for (;;) {
         if (style == GFX_LINE_STYLE_SINGLE_PIXEL) {
             GFX_SetPixelInt(x0, y0, color);
-        } else if (style == GFX_LINE_STYLE_THICK_2PX) {
-            // 2像素粗，横纵各画一像素
-            GFX_SetPixelInt(x0, y0, color);
-            GFX_SetPixelInt(x0 + 1, y0, color);
-            GFX_SetPixelInt(x0, y0 + 1, color);
+        } else if (style == GFX_LINE_STYLE_THICK_DOT) {
+            if ((x0 % 2) == 0) {
+                GFX_SetPixelInt(x0, y0, color);
+            }
         } else if (style == GFX_LINE_STYLE_ALTERNATE_2_1PX) {
-            // 二一像素变化：画2像素，跳1像素
-            if ((x0 % 3) < 2) {
+            if ((x0 % 4) < 3) {
                 GFX_SetPixelInt(x0, y0, color);
             }
         }

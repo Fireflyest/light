@@ -25,7 +25,7 @@
 # include "locate.h"
 # include "pid.h"
 # include "lowpass.h"
-
+# include "control.h"
 
 
 extern __IO uint16_t sysTick;
@@ -43,10 +43,11 @@ void Init_Display();
 void Init_USART(uint32_t baudrate);
 void Init_PWM(uint16_t period, uint16_t prescaler);
 void Init_IMU();
+void Init_Control();
 void Init_Widgets();
 
 void System_Update_Task();
 
-void Loop();
+void Start();
 
 # endif /* __USYSTEM_H */
