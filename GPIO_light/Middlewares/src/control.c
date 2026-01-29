@@ -72,20 +72,29 @@ void RateControl_Loop(void) {
     float m1 = throttle + pitchCtrl - rollCtrl - yawCtrl;
     float m2 = throttle - pitchCtrl + rollCtrl - yawCtrl;
     float m3 = throttle - pitchCtrl - rollCtrl + yawCtrl;
+    float m[4] = { m0, m1, m2, m3 };
 
-    // clamp / scale 保证 0..100
-    float maxv = fmaxf(fmaxf(m0,m1), fmaxf(m2,m3));
-    float minv = fminf(fminf(m0,m1), fminf(m2,m3));
+    float maxv = fmaxf(fmaxf(m[0], m[1]), fmaxf(m[2], m[3]));
+    float minv = fminf(fminf(m[0], m[1]), fminf(m[2], m[3]));
+
+    // 如果最小值低于下限，先整体上移
     const float OUT_MIN = 0.0f, OUT_MAX = 100.0f;
-    if (maxv > OUT_MAX || minv < OUT_MIN) {
-        float scale = 1.0f;
-        if (maxv - minv > 0.0f) scale = fminf(OUT_MAX / maxv, OUT_MIN / minv);
-        m0 *= scale; m1 *= scale; m2 *= scale; m3 *= scale;
+    if (minv < OUT_MIN) {
+        float shift = OUT_MIN - minv;
+        for (int i = 0; i < 4; i++) m[i] += shift;
+        maxv += shift;
+        minv = OUT_MIN;
+    }
+
+    // 如果最大值超上限，按比例缩放（保持相对差值）
+    if (maxv > OUT_MAX && maxv > 0.0f) {
+        float scale = OUT_MAX / maxv;
+        for (int i = 0; i < 4; i++) m[i] *= scale;
     }
 
     // 写入 PWM 缓冲（短临界区）
-    pwmDutyBuffer[0] = Map_Percent_To_Real(m0);
-    pwmDutyBuffer[1] = Map_Percent_To_Real(m1);
-    pwmDutyBuffer[2] = Map_Percent_To_Real(m2);
-    pwmDutyBuffer[3] = Map_Percent_To_Real(m3);
+    pwmDutyBuffer[0] = Map_Percent_To_Real(m[0]);
+    pwmDutyBuffer[1] = Map_Percent_To_Real(m[1]);
+    pwmDutyBuffer[2] = Map_Percent_To_Real(m[2]);
+    pwmDutyBuffer[3] = Map_Percent_To_Real(m[3]);
 }

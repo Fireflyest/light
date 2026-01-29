@@ -72,14 +72,13 @@ void Init_IMU() {
 }
 
 void Init_Control() {
-    pidRoll.kp = 4.0f; pidRoll.ki = 0.0f; pidRoll.kd = 0.2f;
-    pidPitch.kp = 4.0f; pidPitch.ki = 0.0f; pidPitch.kd = 0.2f;
-    pidYaw.kp = 2.0f; pidYaw.ki = 0.0f; pidYaw.kd = 0.1f;
-    pidHeight.kp = 1.0f; pidHeight.ki = 0.0f; pidHeight.kd = 0.1f;
-
-    pidRateRoll.kp = 0.15f; pidRateRoll.ki = 0.001f; pidRateRoll.kd = 0.002f;
-    pidRatePitch.kp = 0.15f; pidRatePitch.ki = 0.001f; pidRatePitch.kd = 0.002f;
-    pidRateYaw.kp = 0.10f; pidRateYaw.ki = 0.0005f; pidRateYaw.kd = 0.001f;
+    PID_Init(&pidRoll, 4.0f, 0.0f, 0.2f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
+    PID_Init(&pidPitch, 4.0f, 0.0f, 0.2f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
+    PID_Init(&pidYaw, 2.0f, 0.0f, 0.1f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
+    PID_Init(&pidHeight, 1.0f, 0.0f, 0.1f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
+    PID_Init(&pidRateRoll, 0.15f, 0.001f, 0.002f, -50.0f, 50.0f, 0.01f, -400.0f, 400.0f, 1.0f);
+    PID_Init(&pidRatePitch, 0.15f, 0.001f, 0.002f, -50.0f, 50.0f, 0.01f, -400.0f, 400.0f, 1.0f);
+    PID_Init(&pidRateYaw, 0.10f, 0.0005f, 0.001f, -50.0f, 50.0f, 0.01f, -400.0f, 400.0f, 1.0f);
 
     // 启动内环定时器（1kHz）
     RateControl_Init(RATE_LOOP_HZ);
@@ -223,9 +222,9 @@ void UI_Pid_Draw(UI_Widget* widget) {
 
     // 获取当前误差
     float errors[3] = {
-        (rateSetRoll - gyroFilt[0].output) * RAD2DEG, 
-        (rateSetPitch - gyroFilt[1].output) * RAD2DEG, 
-        (rateSetYaw - gyroFilt[2].output) * RAD2DEG
+        (rateSetRoll - gyroFilt[0].output), 
+        (rateSetPitch - gyroFilt[1].output), 
+        (rateSetYaw - gyroFilt[2].output)
     };
 
     // 更新历史
@@ -566,13 +565,13 @@ void Load_Bias_Quaternion_From_Flash(Quaternion* q) {
 
 
 
-// 建立双环控制（必须）
+// 建立双环控制（必须）√
 // 为什么：内环角速率控制更快、更稳定；外环姿态控制生成角速设定。
 // 改动点：新增高频定时中断（1kHz）做内环 Rate PID，主循环（100Hz）做姿态外环 P/PI 输出 rate_setpoint。
 // 文件/位置建议：新增 control.c/timerISR 或在现有 systick handler 中加入定时器回调；把 Attitude->rate conversion 放到 Start() 的姿态处理处。
 // 测试：在地面固定机臂 -> 给 step pitch setpoint，观察 gyro rate 跟随与电机响应。
 
-// 确保 PID 保持状态并实现 anti-windup（必须）
+// 确保 PID 保持状态并实现 anti-windup（必须）√
 // 为什么：当前没有积分保持会导致I项失效；防止饱和时积分发散。
 // 改动点：PID 结构加入 integrator、integrator_limit、last_error、D滤波；PID_Update 在输出饱和时停止/反向积分。
 // 文件：pid.c / usystem.c PID_Init 初始化限幅。

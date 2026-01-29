@@ -49,7 +49,8 @@ static void I2C_Configuration(void) {
     I2C_InitStructure.I2C_OwnAddress1 = 0x00;           // Own address (not used in master mode)
     I2C_InitStructure.I2C_Ack = I2C_Ack_Enable;
     I2C_InitStructure.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;
-    I2C_InitStructure.I2C_ClockSpeed = 400000;          // 400 KHz (Fast mode) , 840KHz max
+    // I2C_InitStructure.I2C_ClockSpeed = 400000;          // 400 KHz (Fast mode) , 840KHz max
+    I2C_InitStructure.I2C_ClockSpeed = 800000;          // 400 KHz (Fast mode) , 840KHz max
     
     /* Initialize I2C peripheral */
     I2C_Init(I2C1, &I2C_InitStructure);
