@@ -50,14 +50,27 @@ void Attitude_Kalman_Update(Attitude_Kalman_EKF_t *ekf, float32_t gx, float32_t 
     // 如果不使用磁力计，ez 此时只能由重力纠正，而重力对 Z 轴旋转不降噪
     norm = 1.0f / sqrtf(mx*mx + my*my + mz*mz);
     mx *= norm; my *= norm; mz *= norm;
-    float32_t hx = mx * (q0*q0 + q1*q1 - q2*q2 - q3*q3) + my * 2.0f * (q1*q2 - q0*q3) + mz * 2.0f * (q1*q3 + q0*q2);
-    float32_t hy = mx * 2.0f * (q1*q2 + q0*q3) + my * (q0*q0 - q1*q1 + q2*q2 - q3*q3) + mz * 2.0f * (q2*q3 - q0*q1);
+    
+    // 旋转四元数后地磁预测方向
+    float32_t hx = 2.0f * (mx * (0.5f - q2*q2 - q3*q3) + my * (q1*q2 - q0*q3) + mz * (q1*q3 + q0*q2));
+    float32_t hy = 2.0f * (mx * (q1*q2 + q0*q3) + my * (0.5f - q1*q1 - q3*q3) + mz * (q2*q3 - q0*q1));
     float32_t bx = sqrtf(hx*hx + hy*hy);
-    float32_t bz = mx * 2.0f * (q1*q3 - q0*q2) + my * 2.0f * (q2*q3 + q0*q1) + mz * (q0*q0 - q1*q1 - q2*q2 + q3*q3);
-    float32_t wx = bx * (q0*q0 + q1*q1 - q2*q2 - q3*q3) + bz * 2.0f * (q1*q3 - q0*q2);
-    float32_t wy = bx * 2.0f * (q1*q2 - q0*q3) + bz * 2.0f * (q0*q1 + q2*q3);
-    float32_t wz = bx * 2.0f * (q0*q2 + q1*q3) + bz * (q0*q0 - q1*q1 - q2*q2 + q3*q3);
-    ez += (mx * wy - my * wx); // 此时 ez 包含了来自磁力计的航向偏差
+    float32_t bz = 2.0f * (mx * (q1*q3 - q0*q2) + my * (q2*q3 + q0*q1) + mz * (0.5f - q1*q1 - q2*q2));
+
+    // 预测地磁方向（机体坐标系下）
+    float32_t vxm = 2.0f * (bx * (0.5f - q2*q2 - q3*q3) + bz * (q1*q3 - q0*q2));
+    float32_t vym = 2.0f * (bx * (q1*q2 + q0*q3) + bz * (q2*q3 + q0*q1));
+    float32_t vzm = 2.0f * (bx * (q1*q3 - q0*q2) + bz * (0.5f - q1*q1 - q2*q2));
+
+    // 磁力计误差（外积）
+    float32_t exm = (my * vzm - mz * vym);
+    float32_t eym = (mz * vxm - mx * vzm);
+    float32_t ezm = (mx * vym - my * vxm);
+
+    // 总误差
+    ex += exm;
+    ey += eym;
+    ez += ezm;
 
     // 5. 修正 Bias 并更新四元数
     float32_t Kp = 2.0f; // 比例增益：纠正速度

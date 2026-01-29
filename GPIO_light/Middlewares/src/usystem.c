@@ -13,12 +13,16 @@ uint16_t logicFps = 0;
 UI_Widget* widgets[16];
 static void UI_MPU_BMP_Draw(UI_Widget* widget);
 static void UI_Cube_Draw(UI_Widget* widget);
+static void UI_Pid_Draw(UI_Widget* widget);
 # endif
+
+float rollOutput, pitchOutput, yawOutput;
 
 typedef enum { 
     STATE_NONE,
     STATE_HOME,
     STATE_MPU,
+    STATE_PID,
     STATE_CUBE
 } AppState;
 AppState currentState;
@@ -70,6 +74,11 @@ void Init_Widgets() {
     UI_Window_Init(&mpuWindow, 0, 0, 128, 64);
     mpuWindow.base.draw = UI_MPU_BMP_Draw;
     widgets[STATE_MPU] = (UI_Widget*)&mpuWindow;
+
+    static UI_Window pidWindow;
+    UI_Window_Init(&pidWindow, 0, 0, 128, 64);
+    pidWindow.base.draw = UI_Pid_Draw;
+    widgets[STATE_PID] = (UI_Widget*)&pidWindow;
 
     static UI_Window homeWindow;
     UI_Window_Init(&homeWindow, 0, 0, 128, 64);
@@ -179,6 +188,57 @@ void UI_MPU_BMP_Draw(UI_Widget* widget) {
     }
     GFX_DrawString(x, y + 5 * lh, line, GFX_COLOR_WHITE);
     GFX_DrawString(x, y + 6 * lh, " ", GFX_COLOR_WHITE);
+}
+
+static float pidErrorHistory[3][128] = {0}; // 0:roll, 1:pitch, 2:yaw
+static uint16_t pidErrorLen = 0;
+void UI_Pid_Draw(UI_Widget* widget) {
+
+    UI_Cube_Draw(widget); // 先画立方体作为背景参考
+
+    int x0 = widget->x + 2;
+    int y0 = widget->y + widget->h / 2; // 中线
+    int w = widget->w - 4;
+    int h = widget->h - 4;
+
+    // 获取当前误差
+    float errors[3] = { rollOutput, pitchOutput, yawOutput };
+
+    // 更新历史
+    if (pidErrorLen < w) {
+        for (int i = 0; i < 3; i++)
+            pidErrorHistory[i][pidErrorLen] = errors[i];
+        pidErrorLen++;
+    } else {
+        // 左移一格
+        for (int i = 0; i < 3; i++)
+            memmove(&pidErrorHistory[i][0], &pidErrorHistory[i][1], (w - 1) * sizeof(float));
+        for (int i = 0; i < 3; i++)
+            pidErrorHistory[i][w - 1] = errors[i];
+    }
+
+    // 归一化到屏幕高度
+    float maxAbs = 1e-3f;
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < pidErrorLen; j++)
+            if (fabsf(pidErrorHistory[i][j]) > maxAbs)
+                maxAbs = fabsf(pidErrorHistory[i][j]);
+
+    // 画三条线（逐点画像素）
+    for (int i = 0; i < 3; i++) {
+        uint16_t color = GFX_COLOR_WHITE;
+        int lastY = y0 - (int)(pidErrorHistory[i][0] / maxAbs * (h / 2));
+        for (int j = 1; j < pidErrorLen; j++) {
+            int y = y0 - (int)(pidErrorHistory[i][j] / maxAbs * (h / 2));
+            GFX_Line_Style style = i == 0 ? GFX_LINE_STYLE_THICK_2PX :
+                                  (i == 1 ? GFX_LINE_STYLE_ALTERNATE_2_1PX : GFX_LINE_STYLE_SINGLE_PIXEL);
+            GFX_DrawLineStyled(x0 + j - 1, lastY, x0 + j, y, color, style);
+            lastY = y;
+        }
+    }
+
+    // 画左侧中线原点
+    GFX_DrawPixel(x0, y0, GFX_COLOR_WHITE);
 }
 
 void UI_Cube_Draw(UI_Widget* widget) {
@@ -329,9 +389,9 @@ void Loop() {
         axis.z = q_target.z;                 
         Math3D_VectorNormalize(&axis);
         Math3D_VectorMultiplyScalar(&axis, angle);
-        float rollOutput  = PID_Update(&pidRoll, 0.0f, axis.x, dt);
-        float pitchOutput = PID_Update(&pidPitch, 0.0f, axis.y, dt);
-        float yawOutput   = PID_Update(&pidYaw, 0.0f, axis.z, dt);
+        rollOutput  = PID_Update(&pidRoll, 0.0f, axis.x, dt);
+        pitchOutput = PID_Update(&pidPitch, 0.0f, axis.y, dt);
+        yawOutput   = PID_Update(&pidYaw, 0.0f, axis.z, dt);
         
         float heigthOutput = PID_Update(&pidHeight, 20.0f, loc_ekf.h, dt);
         
@@ -401,8 +461,9 @@ void Loop() {
             UI_Logger_AddLine(&logWindow, (char*)pwm_status);
             # endif
 
-            currentState = STATE_CUBE;
+            // currentState = STATE_CUBE;
             // currentState = STATE_MPU;
+            currentState = STATE_PID;
 
             if (pwr_state == PWR_STATE_DISABLE) {
                 Write_USART1_Data("PWR: ", PWR_GetPercentage());

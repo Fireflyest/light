@@ -60,6 +60,36 @@ void GFX_DrawLine(int x0, int y0, int x1, int y1, GFX_Color color) {
     }
 }
 
+// 线型：GFX_LINE_STYLE_THIN = 单像素，GFX_LINE_STYLE_THICK = 2像素粗，GFX_LINE_STYLE_ALTERNATE = 二一像素变化
+void GFX_DrawLineStyled(int x0, int y0, int x1, int y1, GFX_Color color, GFX_Line_Style style) {
+    int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    int err = dx + dy, e2;
+    int count = 0;
+
+    for (;;) {
+        if (style == GFX_LINE_STYLE_SINGLE_PIXEL) {
+            GFX_SetPixelInt(x0, y0, color);
+        } else if (style == GFX_LINE_STYLE_THICK_2PX) {
+            // 2像素粗，横纵各画一像素
+            GFX_SetPixelInt(x0, y0, color);
+            GFX_SetPixelInt(x0 + 1, y0, color);
+            GFX_SetPixelInt(x0, y0 + 1, color);
+        } else if (style == GFX_LINE_STYLE_ALTERNATE_2_1PX) {
+            // 二一像素变化：画2像素，跳1像素
+            if ((x0 % 3) < 2) {
+                GFX_SetPixelInt(x0, y0, color);
+            }
+        }
+
+        if (x0 == x1 && y0 == y1) break;
+        e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x0 += sx; }
+        if (e2 <= dx) { err += dx; y0 += sy; }
+        count++;
+    }
+}
+
 void GFX_DrawRect(int x, int y, int w, int h, GFX_Color color) {
     GFX_DrawLine(x, y, x + w - 1, y, color);
     GFX_DrawLine(x + w - 1, y, x + w - 1, y + h - 1, color);

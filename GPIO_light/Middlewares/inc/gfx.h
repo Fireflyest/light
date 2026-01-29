@@ -14,6 +14,12 @@ typedef enum {
     GFX_COLOR_INVERT = 2
 } GFX_Color;
 
+typedef enum {
+    GFX_LINE_STYLE_SINGLE_PIXEL,    // 单像素线
+    GFX_LINE_STYLE_THICK_2PX,       // 2像素粗线
+    GFX_LINE_STYLE_ALTERNATE_2_1PX  // 2像素宽和1像素宽交替
+} GFX_Line_Style;
+
 // FrameBuffer
 extern uint8_t GFX_Buffer[OLED_WIDTH * OLED_HEIGHT / 8];
 
@@ -25,6 +31,7 @@ void GFX_Clear(void);
 uint8_t GFX_Update(void);
 void GFX_DrawPixel(int x, int y, GFX_Color color);
 void GFX_DrawLine(int x0, int y0, int x1, int y1, GFX_Color color);
+void GFX_DrawLineStyled(int x0, int y0, int x1, int y1, GFX_Color color, GFX_Line_Style style);
 void GFX_DrawRect(int x, int y, int w, int h, GFX_Color color);
 void GFX_FillRect(int x, int y, int w, int h, GFX_Color color);
 void GFX_DrawCircle(int x0, int y0, int r, GFX_Color color);
