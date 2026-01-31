@@ -2,6 +2,7 @@
 #define __KALMAN_H
 
 #include "arm_math.h"
+#include "lowpass.h"
 
 typedef struct {
     float32_t q[4];      // 状态向量：四元数 [q0, q1, q2, q3]
@@ -17,6 +18,10 @@ typedef struct {
     float32_t Q_angle;
     float32_t Q_gyro; 
     float32_t R_accel;
+
+    float32_t Kp, Ki;
+
+    LowPass_Filter_t magYawFilt;
 } Attitude_Kalman_EKF_t;
 
 typedef struct

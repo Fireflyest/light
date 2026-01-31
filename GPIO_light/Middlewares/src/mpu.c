@@ -6,6 +6,7 @@ uint8_t mpuDataBuffer[14];
 uint8_t magDataBuffer[7];
 uint8_t bmpDataBuffer[6];
 
+IMUCalibrationData_t imuCalibData;
 bmp_calib_t bmp_calib;
 
 static void Init_IMU_GPIO(void);

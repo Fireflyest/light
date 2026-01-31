@@ -95,6 +95,15 @@ extern uint8_t magDataBuffer[7];
 extern uint8_t bmpDataBuffer[6];
 
 typedef struct {
+    float accel_bias[3];
+    float accel_scale[3];
+    float gyro_bias[3];
+    float mag_hard[3];
+    float mag_soft[3][3];
+} IMUCalibrationData_t;
+extern IMUCalibrationData_t imuCalibData;
+
+typedef struct {
     uint16_t dig_T1;
     int16_t  dig_T2;
     int16_t  dig_T3;

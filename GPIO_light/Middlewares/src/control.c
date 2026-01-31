@@ -5,7 +5,7 @@
 
 PID_t pidRoll, pidPitch, pidYaw, pidHeight;
 PID_t pidRateRoll, pidRatePitch, pidRateYaw;
-float baseThrottle = .0f;
+float baseThrottle = 5.0f;
 __IO float rateSetRoll, rateSetPitch, rateSetYaw;
 __IO float thrustOutput;
 LowPass_Filter_t gyroFilt[3];

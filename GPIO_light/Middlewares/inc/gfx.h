@@ -45,6 +45,7 @@ void GFX3D_DrawLine(Point3D* p1, Point3D* p2, GFX_Color color);
 void GFX3D_DrawRect(Point3D* p, Vector3D* v, GFX_Color color);
 void GFX3D_FillRect(Point3D* p, Vector3D* v, GFX_Color color);
 void GFX3D_DrawCube(Point3D* center, Vector3D* v, Quaternion* q, GFX_Color color);
+void GFX3D_DrawPyramid(Point3D* baseCenter, Vector3D* baseHalf, float height, Quaternion* q, GFX_Color color);
 void GFX3D_DrawSphere(Point3D* center, Vector3D* v, GFX_Color color);
 
 #endif /* __GFX_H */

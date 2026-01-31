@@ -14,22 +14,54 @@ UI_Widget* widgets[16];
 static void UI_MPU_BMP_Draw(UI_Widget* widget);
 static void UI_Cube_Draw(UI_Widget* widget);
 static void UI_Pid_Draw(UI_Widget* widget);
-# endif
-
-__IO uint32_t marker = 1;
-static void Save_Bias_Quaternion_To_Flash(Quaternion* q);
-static void Load_Bias_Quaternion_From_Flash(Quaternion* q);
-Quaternion q_bias = {1.0f, 0.0f, 0.0f, 0.0f};
-#define FLASH_BIAS_ADDR  ((uint32_t)0x0803E000)
+static void UI_Accel_Calib_Draw(UI_Widget* widget);
+static void UI_Gyro_Calib_Draw(UI_Widget* widget);
+static void UI_Mag_Calib_Draw(UI_Widget* widget);
+static void UI_RenderFrame(void);
 
 typedef enum { 
     STATE_NONE,
     STATE_HOME,
     STATE_MPU,
     STATE_PID,
+    STATE_ACCEL_CALIBRATE,
+    STATE_GYRO_CALIBRATE,
+    STATE_MAG_CALIBRATE,
     STATE_CUBE
 } AppState;
 AppState currentState;
+# endif
+
+uint16_t logicCounter = 0;    // 程序循环计数
+uint16_t displayCounter = 0;  // 屏幕刷新计数
+uint16_t lastTime = 0;
+uint16_t lastUpdateTick = 0;
+uint16_t frameStart;
+float dt;
+const uint16_t TARGET_FRAME_TIME = 10; // 帧间隔ms
+
+typedef enum {
+    CALIB_WAIT_BUTTON,
+    CALIB_STABILIZING,
+    CALIB_COLLECTING,
+    CALIB_DONE
+} CalibState;
+
+static CalibState accelCalibState, gyroCalibState, magCalibState = CALIB_WAIT_BUTTON;
+static int accelCalibStep = 0; // 0-5 for 6 poses
+static int stableCount = 0;
+static int collectCount = 0;
+static float accelData[6][3]; // 6 poses, 3 axes
+static float gyroData[3]; // sum for bias
+static int gyroSamples = 0;
+static float magData[1000][3]; // sum for hard iron
+static int magSamples = 0;
+
+__IO uint32_t marker = 1;
+static void Save_Bias_Quaternion_To_Flash(Quaternion* q);
+static void Load_Bias_Quaternion_From_Flash(Quaternion* q);
+Quaternion q_bias = {1.0f, 0.0f, 0.0f, 0.0f};
+#define FLASH_BIAS_ADDR  ((uint32_t)0x0803E000)
 
 
 void delay_ms(__IO uint32_t nTime) {
@@ -108,6 +140,23 @@ void Init_Widgets() {
     UI_AddChild((UI_Widget*)&homeWindow, (UI_Widget*)&lblCount);
     widgets[STATE_HOME] = (UI_Widget*)&homeWindow;
 
+
+    static UI_Window accelCalibWindow;
+    UI_Window_Init(&accelCalibWindow, 0, 0, 128, 64);
+    accelCalibWindow.base.draw = UI_Accel_Calib_Draw;
+    widgets[STATE_ACCEL_CALIBRATE] = (UI_Widget*)&accelCalibWindow;
+
+    static UI_Window gyroCalibWindow;
+    UI_Window_Init(&gyroCalibWindow, 0, 0, 128, 64);
+    gyroCalibWindow.base.draw = UI_Gyro_Calib_Draw;
+    widgets[STATE_GYRO_CALIBRATE] = (UI_Widget*)&gyroCalibWindow;
+
+    static UI_Window magCalibWindow;
+    UI_Window_Init(&magCalibWindow, 0, 0, 128, 64);
+    magCalibWindow.base.draw = UI_Mag_Calib_Draw;
+    widgets[STATE_MAG_CALIBRATE] = (UI_Widget*)&magCalibWindow;
+
+
     static UI_Window cubeWindow;
     UI_Window_Init(&cubeWindow, 0, 0, 128, 64);
     cubeWindow.base.draw = UI_Cube_Draw;
@@ -115,12 +164,39 @@ void Init_Widgets() {
     # endif
 }
 
-uint16_t Read_Bluetooth_Command(uint8_t* buffer) {
+void Parse_Bluetooth_Command() {
+    uint8_t buffer[RX_BUFFER_SIZE] = {0};
     uint16_t len = 0;
     if (rxStatusUart1) {
         len = Read_USART1_Data(buffer);
     }
-    return len;
+    // if (len > 0) {
+    //     # ifdef DISPLAY_ENABLE
+    //     UI_Logger_AddLine(&logWindow, (char*)commandBuffer);
+    //     # endif
+
+    //     // ...existing command handling code...
+    //     if (buffer[0] == 'H') {
+    //         currentState = STATE_HOME;
+    //     } else if (buffer[0] == 'C') {
+    //         currentState = STATE_CUBE;
+    //     } else if (buffer[0] == 'N') {
+    //         currentState = STATE_NONE;
+    //     } else if (buffer[0] == 'S') {
+    //         currentState = STATE_MPU;
+    //     } else {
+    //         pwmDutyBuffer[0] = Map_Percent_To_Real(atoi((char*)buffer));
+    //         pwmDutyBuffer[1] = Map_Percent_To_Real(atoi((char*)buffer));
+    //         pwmDutyBuffer[2] = Map_Percent_To_Real(atoi((char*)buffer));
+    //         pwmDutyBuffer[3] = Map_Percent_To_Real(atoi((char*)buffer));
+
+    //         # ifdef DISPLAY_ENABLE
+    //         uint8_t pwm_status[64];
+    //         sprintf((char*)pwm_status, "PWM Set to: %d", Map_Percent_To_Real(atoi((char*)buffer)));
+    //         UI_Logger_AddLine(&logWindow, (char*)pwm_status);
+    //         # endif
+    //     }
+    // }
 }
 
 
@@ -330,6 +406,219 @@ void UI_Cube_Draw(UI_Widget* widget) {
     GFX_DrawString(72, 0, altLine, GFX_COLOR_WHITE);
 
 }
+
+static void UI_Accel_Calib_Draw(UI_Widget* widget) {
+    static uint8_t accelCalibDone = 0;
+    static int g_int;
+    GFX_DrawString(2, 2, "Accel Calib", GFX_COLOR_WHITE);
+    char stepStr[32];
+    if (accelCalibStep < 6) {
+        snprintf(stepStr, sizeof(stepStr), "Step %d/6: ", accelCalibStep + 1);
+        GFX_DrawString(2, 12, stepStr, GFX_COLOR_WHITE);
+        if (accelCalibState == CALIB_WAIT_BUTTON) {
+            GFX_DrawString(2, 22, "Press key to start", GFX_COLOR_WHITE);
+        } else if (accelCalibState == CALIB_STABILIZING) {
+            GFX_DrawString(2, 22, "Stabilizing...", GFX_COLOR_WHITE);
+        } else {
+            GFX_DrawString(2, 22, "Collecting...", GFX_COLOR_WHITE);
+        }
+    } else if (!accelCalibDone) {
+        GFX_DrawString(2, 12, "Calib Collect Done!", GFX_COLOR_WHITE);
+        GFX_DrawString(2, 12, "Calib Complete...", GFX_COLOR_WHITE);
+        float bias[3] = {0};
+        float scale[3] = {1.0f, 1.0f, 1.0f}; // per axis
+        // 计算动态 g（平均合力大小）
+        float g = 0;
+        for (int i = 0; i < 6; i++) {
+            float norm = sqrtf(accelData[i][0]*accelData[i][0] + accelData[i][1]*accelData[i][1] + accelData[i][2]*accelData[i][2]);
+            g += norm;
+        }
+        g /= 6.0f;
+        g_int = (int)(g + 0.5f);
+        const int max_iter = 10;
+        const float alpha = 0.01f; // 学习率
+        for (int iter = 0; iter < max_iter; iter++) {
+            float grad_bias[3] = {0};
+            float grad_scale[3] = {0};
+            for (int i = 0; i < 6; i++) {
+                float a_corr[3];
+                for (int j = 0; j < 3; j++) a_corr[j] = (accelData[i][j] - bias[j]) / scale[j];
+                float norm = sqrtf(a_corr[0]*a_corr[0] + a_corr[1]*a_corr[1] + a_corr[2]*a_corr[2]);
+                if (norm > 1e-6f) {
+                    float error = norm - g;
+                    for (int j = 0; j < 3; j++) grad_bias[j] += error * a_corr[j] / (norm * scale[j]);
+                    for (int j = 0; j < 3; j++) grad_scale[j] += error * norm / scale[j];
+                }
+            }
+            // 更新参数
+            for (int j = 0; j < 3; j++) bias[j] -= alpha * grad_bias[j];
+            for (int j = 0; j < 3; j++) scale[j] -= alpha * grad_scale[j];
+        }
+        // 存储到 imuCalibData
+        for (int j = 0; j < 3; j++) imuCalibData.accel_bias[j] = bias[j];
+        for (int j = 0; j < 3; j++) imuCalibData.accel_scale[j] = scale[j];
+        GFX_DrawString(2, 22, "Bias & Scale saved", GFX_COLOR_WHITE);
+        accelCalibDone = 1;
+    } else {
+        char verify[32];
+        snprintf(verify, sizeof(verify), "G: %d", g_int);
+        GFX_DrawString(2, 22, "Bias saved", GFX_COLOR_WHITE);
+        GFX_DrawString(2, 32, verify, GFX_COLOR_WHITE);
+        GFX_DrawString(2, 12, "Calib Complete", GFX_COLOR_WHITE);
+        stableCount = 0;
+        collectCount = 0;
+        accelCalibState = CALIB_DONE;
+    }
+
+    // 每帧采集数据（不变）
+    if (accelCalibStep < 6 && accelCalibState == CALIB_COLLECTING) {
+        int16_t ax = (int16_t)((mpuDataBuffer[0] << 8) | mpuDataBuffer[1]);
+        int16_t ay = (int16_t)((mpuDataBuffer[2] << 8) | mpuDataBuffer[3]);
+        int16_t az = (int16_t)((mpuDataBuffer[4] << 8) | mpuDataBuffer[5]);
+        accelData[accelCalibStep][0] += ax;
+        accelData[accelCalibStep][1] += ay;
+        accelData[accelCalibStep][2] += az;
+        collectCount++;
+        if (collectCount >= 100) { // 1s at 100Hz
+            for (int j = 0; j < 3; j++) accelData[accelCalibStep][j] /= collectCount;
+            accelCalibStep++;
+            accelCalibState = CALIB_WAIT_BUTTON;
+            collectCount = 0;
+        }
+    } else if (accelCalibState == CALIB_STABILIZING) {
+        stableCount++;
+        if (stableCount >= 300) { // 3s at 100Hz
+            accelCalibState = CALIB_COLLECTING;
+            stableCount = 0;
+        }
+    }
+}
+
+// 陀螺仪校准界面
+static void UI_Gyro_Calib_Draw(UI_Widget* widget) {
+    static uint8_t gyroCalibDone = 0;
+    GFX_DrawString(2, 2, "Gyro Calib", GFX_COLOR_WHITE);
+    if (!gyroCalibDone) {
+        GFX_DrawString(2, 12, "Press key to start", GFX_COLOR_WHITE);
+        if (gyroCalibState == CALIB_STABILIZING) {
+            GFX_DrawString(2, 22, "Stabilizing...", GFX_COLOR_WHITE);
+        } else if (gyroCalibState == CALIB_COLLECTING) {
+            GFX_DrawString(2, 22, "Collecting...", GFX_COLOR_WHITE);
+        }
+    } else {
+        GFX_DrawString(2, 12, "Bias saved", GFX_COLOR_WHITE);
+        GFX_DrawString(2, 12, "Calib Complete", GFX_COLOR_WHITE);
+        gyroCalibState = CALIB_DONE;
+        stableCount = 0;
+    }
+
+    // 稳定等待
+    if (gyroCalibState == CALIB_STABILIZING) {
+        stableCount++;
+        if (stableCount >= 300) { // 3s at 100Hz
+            gyroCalibState = CALIB_COLLECTING;
+            stableCount = 0;
+        }
+    }
+
+    // 采集数据
+    if (gyroCalibState == CALIB_COLLECTING) {
+        int16_t gx = (int16_t)((mpuDataBuffer[8] << 8) | mpuDataBuffer[9]);
+        int16_t gy = (int16_t)((mpuDataBuffer[10] << 8) | mpuDataBuffer[11]);
+        int16_t gz = (int16_t)((mpuDataBuffer[12] << 8) | mpuDataBuffer[13]);
+        gyroData[0] += gx;
+        gyroData[1] += gy;
+        gyroData[2] += gz;
+        gyroSamples++;
+        if (gyroSamples >= 300) { // 3s
+            for (int j = 0; j < 3; j++) imuCalibData.gyro_bias[j] = gyroData[j] / gyroSamples;
+            gyroCalibDone = 1;
+        }
+    }
+}
+
+// 磁力计校准界面
+static void UI_Mag_Calib_Draw(UI_Widget* widget) {
+    static uint8_t magCalibDone = 0;
+    GFX_DrawString(2, 2, "Mag Calib", GFX_COLOR_WHITE);
+    if (!magCalibDone) {
+        GFX_DrawString(2, 12, "Press key to start", GFX_COLOR_WHITE);
+        if (magCalibState == CALIB_STABILIZING) {
+            GFX_DrawString(2, 22, "Stabilizing...", GFX_COLOR_WHITE);
+        } else if (magCalibState == CALIB_COLLECTING) {
+            GFX_DrawString(2, 22, "Collecting...", GFX_COLOR_WHITE);
+        }
+    } else {
+        GFX_DrawString(2, 12, "Calib Complete", GFX_COLOR_WHITE);
+        GFX_DrawString(2, 22, "Hard/Soft saved", GFX_COLOR_WHITE);
+        magCalibState = CALIB_DONE;
+        stableCount = 0;
+    }
+
+    // 稳定等待
+    if (magCalibState == CALIB_STABILIZING) {
+        stableCount++;
+        if (stableCount >= 300) { // 3s
+            magCalibState = CALIB_COLLECTING;
+            stableCount = 0;
+        }
+    }
+
+    // 采集数据
+    if (magCalibState == CALIB_COLLECTING) {
+        int16_t mx = (int16_t)((magDataBuffer[0] << 8) | magDataBuffer[1]);
+        int16_t my = (int16_t)((magDataBuffer[2] << 8) | magDataBuffer[3]);
+        int16_t mz = (int16_t)((magDataBuffer[4] << 8) | magDataBuffer[5]);
+        // 存储样本（假设 magData 是数组）
+        if (magSamples < 1000) {
+            magData[magSamples][0] = mx;
+            magData[magSamples][1] = my;
+            magData[magSamples][2] = mz;
+            magSamples++;
+        }
+        if (magSamples >= 1000) { // 采集完成
+            // 计算硬铁：平均
+            float hard[3] = {0};
+            for (int i = 0; i < 1000; i++) {
+                hard[0] += magData[i][0];
+                hard[1] += magData[i][1];
+                hard[2] += magData[i][2];
+            }
+            hard[0] /= 1000.0f;
+            hard[1] /= 1000.0f;
+            hard[2] /= 1000.0f;
+            for (int j = 0; j < 3; j++) imuCalibData.mag_hard[j] = hard[j];
+
+            // 计算软铁：简化，假设单位矩阵（实际需最小二乘拟合椭圆）
+            for (int i = 0; i < 9; i++) imuCalibData.mag_soft[i][0] = (i % 4 == 0) ? 1.0f : 0.0f; // 单位矩阵
+
+            magCalibDone = 1;
+        }
+    }
+}
+
+
+void UI_RenderFrame(void) {
+    GFX_Clear();
+    UI_DrawTree(widgets[currentState], 0, 0);
+    
+    // 只有当 GFX_Update 成功启动刷新时，updateStarted 才为 1
+    uint8_t updateStarted = GFX_Update();
+    if (updateStarted) {
+        displayCounter++; 
+    }
+
+    // 4. 每秒统计一次 FPS
+    int now = sysTick;
+    if (now - lastTime >= 1000) {
+        screenFps = displayCounter; // 这里的 screenFps 现在代表屏幕实际刷新率
+        logicFps = logicCounter;   // logicFps 代表程序逻辑频率
+        displayCounter = 0;
+        logicCounter = 0;
+        lastTime = now;
+    }
+}
+
 # endif
 
 void System_Update_Task() {
@@ -376,30 +665,21 @@ void System_Update_Task() {
     }
 
     PWR_Handle();
+    Read_IMU_All();
+    Read_BMP_All();
 }
 
 
 void Start() {
-    uint16_t logicCounter = 0;    // 程序循环计数
-    uint16_t displayCounter = 0;  // 屏幕刷新计数
-    uint16_t lastTime = sysTick;
-    uint16_t lastUpdateTick = sysTick;
-
-    const uint16_t TARGET_FRAME_TIME = 10; // 帧间隔
-    uint16_t frameStart;
-
+    lastTime = sysTick;
+    lastUpdateTick = sysTick;
     for (;;) {
-        frameStart = sysTick;
-        logicCounter++; // 每次循环增加程序 FPS 计数
-
-        // 1. 核心系统任务更新 (按程序频率运行)
         System_Update_Task();
 
-        float dt = (uint16_t)(frameStart - lastUpdateTick) / 1000.0f;
+        frameStart = sysTick;
+        logicCounter++;
+        dt = (uint16_t)(frameStart - lastUpdateTick) / 1000.0f;
         lastUpdateTick = frameStart;
-
-        Read_IMU_All();
-        Read_BMP_All();
 
         Attitude_Update(dt, &q_bias); 
         Locate_Update(dt, imu_ekf.q_corr);
@@ -423,57 +703,11 @@ void Start() {
         thrustOutput = baseThrottle + heigthOutput;
 
         // 2. 蓝牙命令处理
-        uint8_t commandBuffer[RX_BUFFER_SIZE] = {0};
-        uint16_t len = Read_Bluetooth_Command(commandBuffer);
-
-        // if (len > 0) {
-        //     # ifdef DISPLAY_ENABLE
-        //     UI_Logger_AddLine(&logWindow, (char*)commandBuffer);
-        //     # endif
-
-        //     // ...existing command handling code...
-        //     if (commandBuffer[0] == 'H') {
-        //         currentState = STATE_HOME;
-        //     } else if (commandBuffer[0] == 'C') {
-        //         currentState = STATE_CUBE;
-        //     } else if (commandBuffer[0] == 'N') {
-        //         currentState = STATE_NONE;
-        //     } else if (commandBuffer[0] == 'S') {
-        //         currentState = STATE_MPU;
-        //     } else {
-        //         pwmDutyBuffer[0] = Map_Percent_To_Real(atoi((char*)commandBuffer));
-        //         pwmDutyBuffer[1] = Map_Percent_To_Real(atoi((char*)commandBuffer));
-        //         pwmDutyBuffer[2] = Map_Percent_To_Real(atoi((char*)commandBuffer));
-        //         pwmDutyBuffer[3] = Map_Percent_To_Real(atoi((char*)commandBuffer));
-
-        //         # ifdef DISPLAY_ENABLE
-        //         uint8_t pwm_status[64];
-        //         sprintf((char*)pwm_status, "PWM Set to: %d", Map_Percent_To_Real(atoi((char*)commandBuffer)));
-        //         UI_Logger_AddLine(&logWindow, (char*)pwm_status);
-        //         # endif
-        //     }
-        // }
+        Parse_Bluetooth_Command();
 
         // 3. 渲染与屏幕刷新
         # ifdef DISPLAY_ENABLE
-        GFX_Clear();
-        UI_DrawTree(widgets[currentState], 0, 0);
-        
-        // 只有当 GFX_Update 成功启动刷新时，updateStarted 才为 1
-        uint8_t updateStarted = GFX_Update();
-        if (updateStarted) {
-            displayCounter++; 
-        }
-
-        // 4. 每秒统计一次 FPS
-        int now = sysTick;
-        if (now - lastTime >= 1000) {
-            screenFps = displayCounter; // 这里的 screenFps 现在代表屏幕实际刷新率
-            logicFps = logicCounter;   // logicFps 代表程序逻辑频率
-            displayCounter = 0;
-            logicCounter = 0;
-            lastTime = now;
-        }
+        UI_RenderFrame();
         # endif // DISPLAY_ENABLE
 
         if (Key_PressConsume()) {
@@ -495,11 +729,61 @@ void Start() {
                 Math3D_QuatMultiply(&q_target, &q_current_conj); // q_target = q_target * q_current_conj
                 q_bias = q_target;
                 Save_Bias_Quaternion_To_Flash(&q_bias);
+
+                // Quaternion qc = *(Quaternion*)&imu_ekf.q; // qc: w,x,y,z
+                // // 计算 yaw（以 rad）
+                // float yaw = atan2f(2.0f * (qc.w * qc.z + qc.x * qc.y),
+                //                 1.0f - 2.0f * (qc.y * qc.y + qc.z * qc.z));
+                // // 构造仅含 yaw 的四元数 q_yaw = [cos(yaw/2), 0, 0, sin(yaw/2)]
+                // Quaternion q_yaw;
+                // float hy = 0.5f * yaw;
+                // q_yaw.w = cosf(hy);
+                // q_yaw.x = 0.0f;
+                // q_yaw.y = 0.0f;
+                // q_yaw.z = sinf(hy);
+                // // q_bias = q_yaw * q_current_conj  (保持 q_corr = q_bias * q_est 语义)
+                // Quaternion q_curr_conj = qc;
+                // Math3D_QuatConjugate(&q_curr_conj);
+                // Math3D_QuatMultiply(&q_yaw, &q_curr_conj); // q_yaw <- q_yaw * q_curr_conj
+                // q_bias = q_yaw;
+                // Save_Bias_Quaternion_To_Flash(&q_bias);
             }
 
             // currentState = STATE_CUBE;
             // currentState = STATE_MPU;
             currentState = STATE_PID;
+            // if (currentState == STATE_NONE) {
+            //     currentState = STATE_ACCEL_CALIBRATE;
+            // } else if (currentState == STATE_ACCEL_CALIBRATE) {
+            //     if (accelCalibState == CALIB_WAIT_BUTTON && accelCalibStep < 6) {
+            //         accelCalibState = CALIB_STABILIZING;
+            //     } else if (accelCalibState == CALIB_DONE) {
+            //         currentState = STATE_GYRO_CALIBRATE; // 进入陀螺
+            //     }
+            // } else if (currentState == STATE_GYRO_CALIBRATE) {
+            //     if (gyroCalibState == CALIB_WAIT_BUTTON) {
+            //         gyroCalibState = CALIB_STABILIZING;
+            //     } else if (gyroCalibState == CALIB_DONE) {
+            //         currentState = STATE_MAG_CALIBRATE;
+            //     }
+            // } else if (currentState == STATE_MAG_CALIBRATE) {
+            //     if (magCalibState == CALIB_WAIT_BUTTON) {
+            //         magCalibState = CALIB_STABILIZING;
+            //     } else if (magCalibState == CALIB_DONE) {
+            //         currentState = STATE_PID; // 回主界面
+            //     }
+            // }
+
+            // # ifdef DISPLAY_ENABLE
+            // char gravity[64];
+            // // 打印重力加速度的模
+            // {
+            //     float g = sqrtf(gravity_est[0]*gravity_est[0] + gravity_est[1]*gravity_est[1] + gravity_est[2]*gravity_est[2]) / 9.81f;
+            //     int mg = (int)(g * 1000.0f + 0.5f); // milli-g, rounded
+            //     sprintf(gravity, "Gravity Init: %d mg", mg);
+            // }
+            // UI_Logger_AddLine(&logWindow, gravity);
+            // # endif
 
 
             if (pwr_state == PWR_STATE_DISABLE) {

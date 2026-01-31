@@ -56,6 +56,9 @@ int main() {
     Init_Widgets();
 
     # ifdef DISPLAY_ENABLE
+    char loginMsg[32];
+    sprintf(loginMsg, "FPU Type: %d", __FPU_USED);
+    UI_Logger_AddLine(&logWindow, loginMsg);
     UI_Logger_AddLine(&logWindow, "Press Key to Start");
     # endif
 

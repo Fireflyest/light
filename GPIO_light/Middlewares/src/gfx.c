@@ -291,6 +291,42 @@ void GFX3D_DrawCube(Point3D* center, Vector3D* v, Quaternion* q, GFX_Color color
     }
 }
 
+
+void GFX3D_DrawPyramid(Point3D* baseCenter, Vector3D* baseHalf, float height, Quaternion* q, GFX_Color color) {
+    // 基底四角局部坐标（z = 0）
+    Vector3D b0 = { baseHalf->x,  baseHalf->y, 0.0f };
+    Vector3D b1 = {-baseHalf->x,  baseHalf->y, 0.0f };
+    Vector3D b2 = {-baseHalf->x, -baseHalf->y, 0.0f };
+    Vector3D b3 = { baseHalf->x, -baseHalf->y, 0.0f };
+    Vector3D apex = { 0.0f, 0.0f, height };
+
+    // 旋转到世界/视图空间（按惯例使用现有旋转函数）
+    Math3D_QuatRotateVector(&b0, q);
+    Math3D_QuatRotateVector(&b1, q);
+    Math3D_QuatRotateVector(&b2, q);
+    Math3D_QuatRotateVector(&b3, q);
+    Math3D_QuatRotateVector(&apex, q);
+
+    // 平移到中心位置
+    Point3D p0 = *baseCenter; p0.x += b0.x; p0.y += b0.y; p0.z += b0.z;
+    Point3D p1 = *baseCenter; p1.x += b1.x; p1.y += b1.y; p1.z += b1.z;
+    Point3D p2 = *baseCenter; p2.x += b2.x; p2.y += b2.y; p2.z += b2.z;
+    Point3D p3 = *baseCenter; p3.x += b3.x; p3.y += b3.y; p3.z += b3.z;
+    Point3D pap = *baseCenter; pap.x += apex.x; pap.y += apex.y; pap.z += apex.z;
+
+    // 绘制基底四边
+    GFX3D_DrawLine(&p0, &p1, color);
+    GFX3D_DrawLine(&p1, &p2, color);
+    GFX3D_DrawLine(&p2, &p3, color);
+    GFX3D_DrawLine(&p3, &p0, color);
+
+    // 绘制四条侧棱
+    GFX3D_DrawLine(&p0, &pap, color);
+    GFX3D_DrawLine(&p1, &pap, color);
+    GFX3D_DrawLine(&p2, &pap, color);
+    GFX3D_DrawLine(&p3, &pap, color);
+}
+
 void GFX3D_DrawSphere(Point3D* center, Vector3D* v, GFX_Color color) {
     // v->x = radius
     Point3D c = *center;

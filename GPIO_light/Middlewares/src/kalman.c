@@ -8,10 +8,14 @@ void Attitude_Kalman_Init(Attitude_Kalman_EKF_t *ekf) {
     ekf->Q_angle = 0.001f;
     ekf->Q_gyro = 0.003f;
     ekf->R_accel = 0.1f;
+    ekf->Kp = 2.0f;
+    ekf->Ki = 0.001f;
 
     arm_mat_init_f32(&ekf->P, 7, 7, ekf->P_data);
     for(int i=0; i<49; i++) ekf->P_data[i] = 0.0f;
     for(int i=0; i<7; i++) ekf->P_data[i*7 + i] = 0.1f; // 对角线初始化
+
+    LowPass_Filter_Init(&ekf->magYawFilt, 0.0f, 0.0f);
 }
 
 void Locate_Kalman_Init(Locate_Kalman_EKF_t *ekf) {
@@ -32,68 +36,79 @@ void Attitude_Kalman_Update(Attitude_Kalman_EKF_t *ekf, float32_t gx, float32_t 
                   float32_t ax, float32_t ay, float32_t az, 
                   float32_t mx, float32_t my, float32_t mz, float32_t dt) {
     float32_t q0 = ekf->q[0], q1 = ekf->q[1], q2 = ekf->q[2], q3 = ekf->q[3];
-    
-    // 1. 归一化加速度计
-    float32_t norm = 1.0f / sqrtf(ax*ax + ay*ay + az*az);
-    ax *= norm; ay *= norm; az *= norm;
+    float32_t integralFBx = 0.0f, integralFBy = 0.0f, integralFBz = 0.0f; // 积分项（可选）
 
-    // 2. 估计重力方向 (机体坐标系下)
+    // 1. 归一化加速度和磁力计（使用 DSP 向量运算）
+    float32_t a_vec[3] = {ax, ay, az};
+    float32_t m_vec[3] = {mx, my, mz};
+    float32_t norm_a_sq = ax*ax + ay*ay + az*az;
+    float32_t norm_m_sq = mx*mx + my*my + mz*mz;
+    float32_t norm_a, norm_m;
+    arm_sqrt_f32(norm_a_sq, &norm_a);  // DSP: 平方根
+    arm_sqrt_f32(norm_m_sq, &norm_m);
+    arm_scale_f32(a_vec, 1.0f / norm_a, a_vec, 3);  // DSP: 向量缩放
+    arm_scale_f32(m_vec, 1.0f / norm_m, m_vec, 3);
+    ax = a_vec[0]; ay = a_vec[1]; az = a_vec[2];
+    mx = m_vec[0]; my = m_vec[1]; mz = m_vec[2];
+
+    // 2. 计算重力方向（机体坐标系）
     float32_t vx = 2.0f * (q1*q3 - q0*q2);
     float32_t vy = 2.0f * (q0*q1 + q2*q3);
     float32_t vz = q0*q0 - q1*q1 - q2*q2 + q3*q3;
 
-    // 3. 计算加速度误差（外积）- 用于纠正 Pitch/Roll
-    float32_t ex = (ay * vz - az * vy);
-    float32_t ey = (az * vx - ax * vz);
-    float32_t ez = (ax * vy - ay * vx);
+    // 3. 计算磁场方向（机体坐标系，假设水平磁场）
+    float32_t hx = 2.0f * mx * (0.5f - q2*q2 - q3*q3) + 2.0f * my * (q1*q2 - q0*q3) + 2.0f * mz * (q1*q3 + q0*q2);
+    float32_t hy = 2.0f * mx * (q1*q2 + q0*q3) + 2.0f * my * (0.5f - q1*q1 - q3*q3) + 2.0f * mz * (q2*q3 - q0*q1);
+    float32_t hz = 2.0f * mx * (q1*q3 - q0*q2) + 2.0f * my * (q2*q3 + q0*q1) + 2.0f * mz * (0.5f - q1*q1 - q2*q2);
+    float32_t bx_sq = hx*hx + hy*hy;
+    float32_t bz = hz;
+    float32_t bx;
+    arm_sqrt_f32(bx_sq, &bx);  // DSP: 平方根
 
-    // 4. 重要：磁力计纠正 Yaw (解决绕 Z 轴旋转问题)
-    // 如果不使用磁力计，ez 此时只能由重力纠正，而重力对 Z 轴旋转不降噪
-    norm = 1.0f / sqrtf(mx*mx + my*my + mz*mz);
-    mx *= norm; my *= norm; mz *= norm;
+    // 4. 计算误差（参考方向与测量方向的叉积）
+    // 加速度误差
+    float32_t ex = ay * vz - az * vy;
+    float32_t ey = az * vx - ax * vz;
+    float32_t ez = ax * vy - ay * vx;
+    // 磁力计误差（只用水平分量）
+    float32_t exm = my * bz - mz * hy;
+    float32_t eym = mz * hx - mx * bz;
+    float32_t ezm = mx * hy - my * hx;
 
-    // 旋转四元数后地磁预测方向
-    float32_t hx = 2.0f * (mx * (0.5f - q2*q2 - q3*q3) + my * (q1*q2 - q0*q3) + mz * (q1*q3 + q0*q2));
-    float32_t hy = 2.0f * (mx * (q1*q2 + q0*q3) + my * (0.5f - q1*q1 - q3*q3) + mz * (q2*q3 - q0*q1));
-    float32_t bx = sqrtf(hx*hx + hy*hy);
-    float32_t bz = 2.0f * (mx * (q1*q3 - q0*q2) + my * (q2*q3 + q0*q1) + mz * (0.5f - q1*q1 - q2*q2));
+    // 5. PI 控制器（积分项可选）
+    if (ekf->Ki > 0.0f) {
+        integralFBx += ekf->Ki * ex * dt;
+        integralFBy += ekf->Ki * ey * dt;
+        integralFBz += ekf->Ki * ezm * dt;
+        gx += integralFBx;
+        gy += integralFBy;
+        gz += integralFBz;
+    }
 
-    // 预测地磁方向（机体坐标系下）
-    float32_t vxm = 2.0f * (bx * (0.5f - q2*q2 - q3*q3) + bz * (q1*q3 - q0*q2));
-    float32_t vym = 2.0f * (bx * (q1*q2 + q0*q3) + bz * (q2*q3 + q0*q1));
-    float32_t vzm = 2.0f * (bx * (q1*q3 - q0*q2) + bz * (0.5f - q1*q1 - q2*q2));
+    // 6. 应用比例校正
+    gx += ekf->Kp * ex;
+    gy += ekf->Kp * ey;
+    gz += ekf->Kp * ezm;
 
-    // 磁力计误差（外积）
-    float32_t exm = (my * vzm - mz * vym);
-    float32_t eym = (mz * vxm - mx * vzm);
-    float32_t ezm = (mx * vym - my * vxm);
+    // 7. 积分四元数（一阶）
+    float half_dt = 0.5f * dt;
+    q0 += half_dt * (-q1 * gx - q2 * gy - q3 * gz);
+    q1 += half_dt * ( q0 * gx + q2 * gz - q3 * gy);
+    q2 += half_dt * ( q0 * gy - q1 * gz + q3 * gx);
+    q3 += half_dt * ( q0 * gz + q1 * gy - q2 * gx);
 
-    // 总误差
-    ex += exm;
-    ey += eym;
-    ez += ezm;
+    // 8. 归一化（使用 DSP 四元数归一化）
+    float32_t q_vec[4] = {q0, q1, q2, q3};
+    arm_quaternion_normalize_f32(q_vec, q_vec, 1);  // DSP: 四元数归一化
+    ekf->q[0] = q_vec[0];
+    ekf->q[1] = q_vec[1];
+    ekf->q[2] = q_vec[2];
+    ekf->q[3] = q_vec[3];
 
-    // 5. 修正 Bias 并更新四元数
-    float32_t Kp = 2.0f; // 比例增益：纠正速度
-    float32_t Ki = 0.001f; // 积分增益：消除 bias (不可太大，否则加速旋转)
-
-    ekf->bias[0] -= Ki * ex;
-    ekf->bias[1] -= Ki * ey;
-    ekf->bias[2] -= Ki * ez;
-
-    ekf->gyro_corr[0] = gx - ekf->bias[0] + Kp * ex;
-    ekf->gyro_corr[1] = gy - ekf->bias[1] + Kp * ey;
-    ekf->gyro_corr[2] = gz - ekf->bias[2] + Kp * ez;
-
-    // 更新四元数 (一阶龙格库塔)
-    ekf->q[0] += 0.5f * (-q1 * ekf->gyro_corr[0] - q2 * ekf->gyro_corr[1] - q3 * ekf->gyro_corr[2]) * dt;
-    ekf->q[1] += 0.5f * ( q0 * ekf->gyro_corr[0] + q2 * ekf->gyro_corr[2] - q3 * ekf->gyro_corr[1]) * dt;
-    ekf->q[2] += 0.5f * ( q0 * ekf->gyro_corr[1] - q1 * ekf->gyro_corr[2] + q3 * ekf->gyro_corr[0]) * dt;
-    ekf->q[3] += 0.5f * ( q0 * ekf->gyro_corr[2] + q1 * ekf->gyro_corr[1] - q2 * ekf->gyro_corr[0]) * dt;
-
-    // 必须归一化
-    norm = 1.0f / sqrtf(ekf->q[0]*ekf->q[0] + ekf->q[1]*ekf->q[1] + ekf->q[2]*ekf->q[2] + ekf->q[3]*ekf->q[3]);
-    ekf->q[0] *= norm; ekf->q[1] *= norm; ekf->q[2] *= norm; ekf->q[3] *= norm;
+    // 9. 更新 gyro_corr（可选，用于外部使用）
+    ekf->gyro_corr[0] = gx;
+    ekf->gyro_corr[1] = gy;
+    ekf->gyro_corr[2] = gz;
 }
 
 
@@ -108,26 +123,21 @@ void Locate_Kalman_Update(Locate_Kalman_EKF_t *ekf, float32_t az, float32_t alti
     ekf->h  += ekf->vz * dt + 0.5f * acc * dt * dt;
     ekf->vz += acc * dt;
 
-    // 协方差预测
-    float P00 = ekf->P_data[0] + dt * (ekf->P_data[3] + ekf->P_data[1]) + dt * dt * ekf->P_data[4] + ekf->Q_height;
-    float P01 = ekf->P_data[1] + dt * ekf->P_data[4];
-    float P02 = ekf->P_data[2];
-    float P10 = ekf->P_data[3] + dt * ekf->P_data[4];
-    float P11 = ekf->P_data[4] + ekf->Q_accel;
-    float P12 = ekf->P_data[5];
-    float P20 = ekf->P_data[6];
-    float P21 = ekf->P_data[7];
-    float P22 = ekf->P_data[8] + 1e-6f; // bias噪声极小
-
-    ekf->P_data[0] = P00;
-    ekf->P_data[1] = P01;
-    ekf->P_data[2] = P02;
-    ekf->P_data[3] = P10;
-    ekf->P_data[4] = P11;
-    ekf->P_data[5] = P12;
-    ekf->P_data[6] = P20;
-    ekf->P_data[7] = P21;
-    ekf->P_data[8] = P22;
+    // 协方差预测（使用 DSP 矩阵运算）
+    arm_matrix_instance_f32 F, Ft, Q, P_pred, temp;
+    float32_t F_data[9] = {1, dt, 0, 0, 1, dt, 0, 0, 1};
+    float32_t Ft_data[9];
+    float32_t temp_data[9];  // 添加 temp 数据数组
+    float32_t Q_data[9] = {ekf->Q_height, 0, 0, 0, ekf->Q_accel, 0, 0, 0, 1e-6f};
+    arm_mat_init_f32(&F, 3, 3, F_data);
+    arm_mat_init_f32(&Ft, 3, 3, Ft_data);
+    arm_mat_init_f32(&temp, 3, 3, temp_data);  // 修复：初始化 temp
+    arm_mat_init_f32(&Q, 3, 3, Q_data);
+    arm_mat_init_f32(&P_pred, 3, 3, ekf->P_data);
+    arm_mat_trans_f32(&F, &Ft);
+    arm_mat_mult_f32(&F, &ekf->P, &temp);  // 现在正常
+    arm_mat_mult_f32(&temp, &Ft, &P_pred);
+    arm_mat_add_f32(&P_pred, &Q, &ekf->P);
 
     // 2. 更新（测量更新，气压计高度）
     // 观测矩阵 H = [1 0 0]
@@ -142,18 +152,12 @@ void Locate_Kalman_Update(Locate_Kalman_EKF_t *ekf, float32_t az, float32_t alti
     ekf->vz += K1 * y;
     ekf->bz += K2 * y;
 
-    // 协方差更新
-    float P00_ = ekf->P_data[0], P01_ = ekf->P_data[1], P02_ = ekf->P_data[2];
-    float P10_ = ekf->P_data[3], P11_ = ekf->P_data[4], P12_ = ekf->P_data[5];
-    float P20_ = ekf->P_data[6], P21_ = ekf->P_data[7], P22_ = ekf->P_data[8];
-
-    ekf->P_data[0] -= K0 * P00_;
-    ekf->P_data[1] -= K0 * P01_;
-    ekf->P_data[2] -= K0 * P02_;
-    ekf->P_data[3] -= K1 * P00_;
-    ekf->P_data[4] -= K1 * P01_;
-    ekf->P_data[5] -= K1 * P02_;
-    ekf->P_data[6] -= K2 * P00_;
-    ekf->P_data[7] -= K2 * P01_;
-    ekf->P_data[8] -= K2 * P02_;
+    // 协方差更新（使用 DSP 矩阵运算）
+    arm_matrix_instance_f32 I, KH;
+    float32_t I_data[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    float32_t KH_data[9] = {K0, 0, 0, K1, 0, 0, K2, 0, 0};
+    arm_mat_init_f32(&I, 3, 3, I_data);
+    arm_mat_init_f32(&KH, 3, 3, KH_data);
+    arm_mat_sub_f32(&I, &KH, &temp);  // 复用 temp
+    arm_mat_mult_f32(&temp, &ekf->P, &ekf->P);
 }

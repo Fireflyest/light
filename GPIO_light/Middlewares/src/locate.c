@@ -2,20 +2,26 @@
 #include "mpu.h"
 
 
-LowPass_Filter_t tempFilt, pressFilt;
+LowPass_Filter_t tempFilt, pressFilt, altFilt, azFilt;
 Locate_Kalman_EKF_t loc_ekf;
 
 float temperature;
 float barometricPressure;
 float altitude;
+float gravity_est[3] = {0.0f, 0.0f, 0.0f};
 
 static int32_t t_fine;
 static uint8_t lowPassInited = 0;
+static uint8_t locateFiltInited = 0;
 
 static void BMP_Compensate_T(int32_t adc_T);
 static void BMP_Compensate_P(int32_t adc_P);
 static void BMP_GetAltitude();
 
+
+void Locate_Init() {
+    
+}
 
 void Locate_Update(float dt, float32_t q[4]) {
     uint32_t adc_P = ((uint32_t)bmpDataBuffer[0] << 12) | ((uint32_t)bmpDataBuffer[1] << 4) | ((bmpDataBuffer[2] >> 4) & 0x0F);
@@ -36,19 +42,38 @@ void Locate_Update(float dt, float32_t q[4]) {
 
     BMP_GetAltitude();
 
-    // 获取加速度
-    float az = (int16_t)((mpuDataBuffer[4] << 8) | mpuDataBuffer[5]) / 4096.0f;
-    float ay = (int16_t)((mpuDataBuffer[2] << 8) | mpuDataBuffer[3]) / 4096.0f;
-    float ax = (int16_t)((mpuDataBuffer[0] << 8) | mpuDataBuffer[1]) / 4096.0f;
+    float ax = (int16_t)((mpuDataBuffer[0] << 8) | mpuDataBuffer[1]) / 4096.0f * 9.81f;
+    float ay = (int16_t)((mpuDataBuffer[2] << 8) | mpuDataBuffer[3]) / 4096.0f * 9.81f;
+    float az = (int16_t)((mpuDataBuffer[4] << 8) | mpuDataBuffer[5]) / 4096.0f * 9.81f;
 
-    float az_world = (1.0f - 2.0f * (q[1]*q[1] + q[2]*q[2])) * az
-                      + (2.0f * (q[0]*q[2] - q[3]*q[1])) * ay
-                      + (2.0f * (q[0]*q[1] + q[3]*q[2])) * ax;
-    
-    float az_linear = az_world + 9.81f; // 去重力加速度
+    // 四元数旋转（q = [w, x, y, z]）
+    float qw = q[0], qx = q[1], qy = q[2], qz = q[3];
 
-    // 执行高度 EKF 更新
-    Locate_Kalman_Update(&loc_ekf, az_linear, altitude, dt);
+    float ax_w = (1.0f - 2.0f*(qy*qy + qz*qz))*ax + 2.0f*(qx*qy - qw*qz)*ay + 2.0f*(qx*qz + qw*qy)*az;
+    float ay_w = 2.0f*(qx*qy + qw*qz)*ax + (1.0f - 2.0f*(qx*qx + qz*qz))*ay + 2.0f*(qy*qz - qw*qx)*az;
+    float az_w = 2.0f*(qx*qz - qw*qy)*ax + 2.0f*(qy*qz + qw*qx)*ay + (1.0f - 2.0f*(qx*qx + qy*qy))*az;
+
+    // 第一次调用时用静止测量值初始化 gravity_est 和滤波器
+    if (!locateFiltInited) {
+        gravity_est[0] = ax_w;
+        gravity_est[1] = ay_w;
+        gravity_est[2] = az_w;
+        LowPass_Filter_Init(&azFilt, dt / (AZ_TAU + dt), 0.0f);
+        LowPass_Filter_Init(&altFilt, dt / (ALT_TAU + dt), altitude);
+        locateFiltInited = 1;
+    }
+
+    // 线性加速度 = world 加速度 - 静态重力 (考虑校准时的倾角)
+    float lin_x = ax_w - gravity_est[0];
+    float lin_y = ay_w - gravity_est[1];
+    float lin_z = az_w - gravity_est[2];
+
+    // 对垂直分量做小低通再送 EKF
+    LowPass_UpdateWithTau(&azFilt, lin_z, AZ_TAU, dt);
+    float lin_z_f = azFilt.output;
+
+    // 传入高度 EKF（使用滤波后的线加速度）
+    Locate_Kalman_Update(&loc_ekf, lin_z_f, altitude, dt);
 }
 
 
