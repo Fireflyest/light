@@ -54,7 +54,7 @@
                 "--probe",
                 "stlink:",
                 "--cbuild-run",
-                "${command:cmsis-csolution.getCbuildRunFile}"
+                "${workspaceFolder}/out/light+STM32F401RCTx.cbuild-run.yml"
             ],
             "problemMatcher": []
         },
@@ -77,7 +77,7 @@
                 "--probe",
                 "stlink:",
                 "--cbuild-run",
-                "${command:cmsis-csolution.getCbuildRunFile}"
+                "${workspaceFolder}/out/light+STM32F401RCTx.cbuild-run.yml"
             ],
             "problemMatcher": []
         },
@@ -107,7 +107,7 @@
             "args": [
                 "list",
                 "--cbuild-run",
-                "${command:cmsis-csolution.getCbuildRunFile}"
+                "${workspaceFolder}/out/light+STM32F401RCTx.cbuild-run.yml"
             ],
             "problemMatcher": []
         }

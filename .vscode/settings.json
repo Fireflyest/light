@@ -4,11 +4,25 @@
     "debug.showInStatusBar": "never",
     "C_Cpp.default.includePath": [
         "${workspaceFolder}/**",
-        "C:/Users/Lenovo/AppData/Local/arm/packs/ARM/CMSIS/6.2.0/CMSIS/Core/Include",
-        "C:/Users/Lenovo/AppData/Local/arm/packs/ARM/CMSIS-DSP/1.16.2/Include"
+        "C:/Users/frostTide/AppData/Local/arm/packs/ARM/CMSIS/6.3.0/CMSIS/Core/Include",
+        "C:/Users/frostTide/AppData/Local/arm/packs/ARM/CMSIS-DSP/1.11.0/Include"
     ],
-    "C_Cpp.default.compilerPath": "G:/libraries/arm-gnu-toolchain-15.2.rel1/bin/arm-none-eabi-gcc.exe",
+    "C_Cpp.default.compilerPath": "E:/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc.exe",
     "C_Cpp.default.intelliSenseMode": "windows-gcc-arm",
     "cmsis-csolution.autoDebugLaunch": false,
-    "cmake.ignoreCMakeListsMissing": true
+    "cmake.ignoreCMakeListsMissing": true,
+    "files.associations": {
+        "usystem.h": "c",
+        "attitude.h": "c",
+        "kalman.h": "c"
+    },
+    "cmsis-csolution.actions": [
+        {
+            "path": "light.csolution.yml",
+            "target": "STM32F401RCTx",
+            "config": {
+                "run": "CMSIS Load+Run"
+            }
+        }
+    ]
 }

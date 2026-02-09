@@ -719,7 +719,6 @@ void Start() {
 
             # ifdef DISPLAY_ENABLE
             UI_Logger_AddLine(&logWindow, (char*)pwm_status);
-            # endif
 
             if (currentState == STATE_PID) {
                 Quaternion q_target = {1.0f, 0.0f, 0.0f, 0.0f}; // 理想水平
@@ -785,6 +784,7 @@ void Start() {
             // UI_Logger_AddLine(&logWindow, gravity);
             // # endif
 
+            # endif // DISPLAY_ENABLE
 
             if (pwr_state == PWR_STATE_DISABLE) {
                 Write_USART1_Data("PWR: ", PWR_GetPercentage());
@@ -844,7 +844,9 @@ void Load_Bias_Quaternion_From_Flash(Quaternion* q) {
     }
     char buf[64];
     sprintf(buf, "Flash marker %d", (int)udata[0]);
+    # ifdef DISPLAY_ENABLE
     UI_Logger_AddLine(&logWindow, buf);
+    # endif // DISPLAY_ENABLE
 }
 
 
