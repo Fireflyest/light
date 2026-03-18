@@ -12,108 +12,68 @@ project:
   groups:
     - group: STM32F4xx StdPeriph Driver Files
       files:
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/misc.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_adc.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_can.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_crc.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_dac.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_dbgmcu.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_dcmi.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_dma.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_exti.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_flash.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_gpio.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_i2c.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_iwdg.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_pwr.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_rcc.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_rng.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_rtc.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_sdio.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_spi.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_syscfg.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_tim.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_usart.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/inc/stm32f4xx_wwdg.h
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/misc.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_adc.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_can.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_crc.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dac.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dbgmcu.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dcmi.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dma.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_exti.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_flash.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_gpio.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_i2c.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_iwdg.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_pwr.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_rcc.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_rng.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_rtc.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_sdio.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_spi.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_syscfg.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_tim.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_usart.c
-        - file: ./RTE/Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_wwdg.c
-    - group: Run Time Environment Files
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/misc.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_adc.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_can.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_crc.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dac.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dbgmcu.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dcmi.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_dma.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_exti.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_flash.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_gpio.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_i2c.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_iwdg.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_pwr.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_rcc.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_rng.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_rtc.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_sdio.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_spi.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_syscfg.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_tim.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_usart.c
+        - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_wwdg.c
+    - group: Device Files
       files:
-        - file: ./User/stm32f4xx_it.h
-        - file: ./User/stm32f4xx_it.c
-        - file: ./User/stm32f4xx_conf.h
-        - file: ./RTE/Device/STM32F401RCTx/stm32f4xx.h
-        - file: ./RTE/Device/STM32F401RCTx/system_stm32f4xx.h
-        - file: ./RTE/Device/STM32F401RCTx/system_stm32f4xx.c
-        - file: ./RTE/Device/STM32F401RCTx/startup_stm32f401xc.s
+        - file: ./Device/STM32F4xx/Source/Templates/system_stm32f4xx.c
+        - file: ./Device/STM32F4xx/Source/Templates/startup_stm32f401xc.s
     - group: Middlewares Files
       files:
-        - file: ./Middlewares/inc/usystem.h
         - file: ./Middlewares/src/usystem.c
-        - file: ./Middlewares/inc/usart1.h
         - file: ./Middlewares/src/usart1.c
-        - file: ./Middlewares/inc/dma.h
         - file: ./Middlewares/src/dma.c
-        - file: ./Middlewares/inc/key.h
         - file: ./Middlewares/src/key.c
-        - file: ./Middlewares/inc/led.h
         - file: ./Middlewares/src/led.c
-        - file: ./Middlewares/inc/pwm.h
         - file: ./Middlewares/src/pwm.c
-        - file: ./Middlewares/inc/gfx.h
         - file: ./Middlewares/src/gfx.c
-        - file: ./Middlewares/inc/math3d.h
         - file: ./Middlewares/src/math3d.c
-        - file: ./Middlewares/inc/ui.h
         - file: ./Middlewares/src/ui.c
-        - file: ./Middlewares/inc/oled.h
         - file: ./Middlewares/src/oled.c
-        - file: ./Middlewares/inc/mpu.h
         - file: ./Middlewares/src/mpu.c
-        - file: ./Middlewares/inc/pwr.h
         - file: ./Middlewares/src/pwr.c
-        - file: ./Middlewares/inc/kalman.h
         - file: ./Middlewares/src/kalman.c
-        - file: ./Middlewares/inc/attitude.h
         - file: ./Middlewares/src/attitude.c
-        - file: ./Middlewares/inc/locate.h
         - file: ./Middlewares/src/locate.c
-        - file: ./Middlewares/inc/pid.h
         - file: ./Middlewares/src/pid.c
-        - file: ./Middlewares/inc/lowpass.h
         - file: ./Middlewares/src/lowpass.c
-        - file: ./Middlewares/inc/control.h
         - file: ./Middlewares/src/control.c
-        - file: ./Middlewares/display/bmp.h
         - file: ./Middlewares/display/bmp.c
-        - file: ./Middlewares/display/font.h
         - file: ./Middlewares/display/font.c
     - group: User Files
       files:
-        - file: ./User/main.h
         - file: ./User/main.c
+        - file: ./User/stm32f4xx_it.c
 
+  add-path:
+    - ./User
+    - ./Drivers/STM32F4xx_StdPeriph_Driver/inc
+    - ./Device/STM32F4xx/Include
+    - ./Device/STM32F4xx/Source/Templates
+    - ./Middlewares/inc
+    - ./Middlewares/display
+  
   # List components to use for your application.
   # A software component is a re-usable unit that may be configurable.
   components:
