@@ -9,6 +9,9 @@ project:
       Library:
         - m
   
+  define:
+    - STM32F401xx
+
   groups:
     - group: STM32F4xx StdPeriph Driver Files
       files:
@@ -37,41 +40,56 @@ project:
         - file: ./Drivers/STM32F4xx_StdPeriph_Driver/src/stm32f4xx_wwdg.c
     - group: Device Files
       files:
-        - file: ./Device/STM32F4xx/Source/Templates/system_stm32f4xx.c
-        - file: ./Device/STM32F4xx/Source/Templates/startup_stm32f401xc.s
+        - file: ./Drivers/CMSIS/Device/STM32F4xx/Source/Templates/system_stm32f4xx.c
+        - file: ./Drivers/CMSIS/Device/STM32F4xx/Source/Templates/startup_stm32f401xc.s
+        - file: ./Drivers/BSP/src/board.c
+        - file: ./Drivers/BSP/src/dma.c
+        - file: ./Drivers/BSP/src/oled.c
+        - file: ./Drivers/BSP/src/memory.c
+        - file: ./Drivers/BSP/src/icm20948.c
+        - file: ./Drivers/BSP/src/bmp280.c
     - group: Middlewares Files
       files:
-        - file: ./Middlewares/src/usystem.c
+        - file: ./Middlewares/Algorithm/src/lowpass.c
+        - file: ./Middlewares/Algorithm/src/pid.c
+        - file: ./Middlewares/Algorithm/src/spatial_math.c
+        - file: ./Middlewares/Algorithm/src/state_estimator.c
+        - file: ./Middlewares/Modules/src/battery.c
+        - file: ./Middlewares/Modules/src/ble.c
+        - file: ./Middlewares/Modules/src/fps.c
+        - file: ./Middlewares/Modules/src/key.c
+        - file: ./Middlewares/Modules/src/led.c
+        - file: ./Middlewares/Modules/src/pwm.c
         - file: ./Middlewares/src/usart1.c
-        - file: ./Middlewares/src/dma.c
-        - file: ./Middlewares/src/key.c
-        - file: ./Middlewares/src/led.c
-        - file: ./Middlewares/src/pwm.c
-        - file: ./Middlewares/src/gfx.c
         - file: ./Middlewares/src/math3d.c
-        - file: ./Middlewares/src/ui.c
-        - file: ./Middlewares/src/oled.c
-        - file: ./Middlewares/src/mpu.c
-        - file: ./Middlewares/src/pwr.c
+        # - file: ./Middlewares/src/mpu.c
         - file: ./Middlewares/src/kalman.c
-        - file: ./Middlewares/src/attitude.c
-        - file: ./Middlewares/src/locate.c
-        - file: ./Middlewares/src/pid.c
-        - file: ./Middlewares/src/lowpass.c
+        - file: ./Middlewares/Modules/src/attitude.c
+        - file: ./Middlewares/Modules/src/locate.c
         - file: ./Middlewares/src/control.c
-        - file: ./Middlewares/display/bmp.c
-        - file: ./Middlewares/display/font.c
+        - file: ./Middlewares/UI/src/bmp.c
+        - file: ./Middlewares/UI/src/font.c
+        - file: ./Middlewares/UI/src/gfx.c
+        - file: ./Middlewares/UI/src/navigator.c
+        - file: ./Middlewares/UI/src/ui.c
     - group: User Files
       files:
-        - file: ./User/main.c
-        - file: ./User/stm32f4xx_it.c
+        - file: ./User/src/main.c
+        # - file: ./User/src/usystem.c
+        - file: ./User/src/stm32f4xx_it.c
 
   add-path:
-    - ./User
+    - ./User/inc
     - ./Drivers/STM32F4xx_StdPeriph_Driver/inc
-    - ./Device/STM32F4xx/Include
-    - ./Device/STM32F4xx/Source/Templates
+    - ./Drivers/CMSIS/Device/STM32F4xx/Include
+    - ./Drivers/CMSIS/Device/STM32F4xx/Source/Templates
+    - ./Drivers/BSP/inc
     - ./Middlewares/inc
+    - ./Middlewares/Algorithm/inc
+    - ./Middlewares/Modules/inc
+    - ./Middlewares/Protocol/inc
+    - ./Middlewares/UI/inc
+    - ./Middlewares/ThirdParty/inc
     - ./Middlewares/display
   
   # List components to use for your application.

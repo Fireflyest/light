@@ -9,6 +9,14 @@
     ],
     "C_Cpp.default.compilerPath": "E:/Arm/GNU Toolchain mingw-w64-i686-arm-none-eabi/bin/arm-none-eabi-gcc.exe",
     "C_Cpp.default.intelliSenseMode": "windows-gcc-arm",
+    "C_Cpp.default.defines": [
+        "STM32F401xx"
+    ],
+    "C_Cpp.default.compilerArgs": [
+        "-mcpu=cortex-m4",
+        "-mfloat-abi=hard",
+        "-mfpu=fpv4-sp-d16"
+    ],
     "cmsis-csolution.autoDebugLaunch": false,
     "cmake.ignoreCMakeListsMissing": true,
     "files.associations": {

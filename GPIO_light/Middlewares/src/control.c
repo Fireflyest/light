@@ -93,8 +93,8 @@ void RateControl_Loop(void) {
     }
 
     // 写入 PWM 缓冲（短临界区）
-    pwmDutyBuffer[0] = Map_Percent_To_Real(m[0]);
-    pwmDutyBuffer[1] = Map_Percent_To_Real(m[1]);
-    pwmDutyBuffer[2] = Map_Percent_To_Real(m[2]);
-    pwmDutyBuffer[3] = Map_Percent_To_Real(m[3]);
+    pwmDutyBuffer[0] = PWM_Map_Percent(m[0]);
+    pwmDutyBuffer[1] = PWM_Map_Percent(m[1]);
+    pwmDutyBuffer[2] = PWM_Map_Percent(m[2]);
+    pwmDutyBuffer[3] = PWM_Map_Percent(m[3]);
 }

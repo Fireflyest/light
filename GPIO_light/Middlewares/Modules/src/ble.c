@@ -1,12 +1,12 @@
-# include "usart1.h"
+#include "ble.h"
 
-uint8_t rxBufferUart1[RX_BUFFER_SIZE];
-uint8_t txBufferUart1[TX_BUFFER_SIZE];
-__IO uint16_t rxIndexUart1 = 0;
-__IO uint8_t rxStatusUart1 = RX_STATE_IDLE;
+uint8_t bleRxBuffer[BLE_RX_BUFFER_SIZE];
+uint8_t bleTxBuffer[BLE_TX_BUFFER_SIZE];
 
+__IO uint16_t bleRxIndexUart1;
+__IO uint8_t bleRxStatusUart1;
 
-void Init_USART1(uint32_t baudrate) {
+void BLE_Init(uint32_t baudrate) {
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE); // Enable USART1 clock
 
     USART_InitTypeDef USART_InitStructure;
@@ -35,27 +35,27 @@ void Init_USART1(uint32_t baudrate) {
     USART_DMACmd(USART1, USART_DMAReq_Tx, ENABLE);
 }
 
-uint16_t Read_USART1_Data(uint8_t* data) {
-    uint16_t size = rxIndexUart1;
+uint16_t BLE_ReadData(uint8_t* data) {
+    uint16_t size = bleRxIndexUart1;
     if (size > 0) {
-        memcpy(data, rxBufferUart1, size);
+        memcpy(data, bleRxBuffer, size);
         data[size] = '\0'; // Null-terminate the string
     }
-    rxStatusUart1 = RX_STATE_IDLE;
-    rxIndexUart1 = 0;
+    bleRxStatusUart1 = BLE_RX_STATE_IDLE;
+    bleRxIndexUart1 = 0;
     return size;
 }
 
-void Write_USART1_Data(uint8_t* data, uint16_t size) {
+void BLE_WriteData(uint8_t* data, uint16_t size) {
     if (size == 0) return;
 
     uint16_t timeout;
     for (timeout = 0xFFFF;DMA_GetCmdStatus(DMA2_Stream7) != DISABLE && timeout > 0; timeout--) ;
     if (timeout == 0) return;
 
-    uint16_t sendLen = (size > TX_BUFFER_SIZE) ? TX_BUFFER_SIZE : size;
+    uint16_t sendLen = (size > BLE_TX_BUFFER_SIZE) ? BLE_TX_BUFFER_SIZE : size;
 
-    memcpy(txBufferUart1, data, sendLen);
+    memcpy(bleTxBuffer, data, sendLen);
 
     DMA_ClearFlag(DMA2_Stream7, DMA_FLAG_TCIF7 | DMA_FLAG_HTIF7 | DMA_FLAG_TEIF7 | DMA_FLAG_DMEIF7 | DMA_FLAG_FEIF7);
     DMA_SetCurrDataCounter(DMA2_Stream7, sendLen);
