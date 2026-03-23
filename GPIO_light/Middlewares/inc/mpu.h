@@ -92,7 +92,7 @@
 
 extern uint8_t mpuDataBuffer[14];
 extern uint8_t magDataBuffer[7];
-extern uint8_t bmpDataBuffer[6];
+extern uint8_t bmp_rx_buf[6];
 
 typedef struct {
     float accel_bias[3];
@@ -123,9 +123,9 @@ extern bmp_calib_t bmp_calib;
 void Init_IMU_Hardware(void);
 
 void Write_MPU_Register(uint8_t reg, uint8_t data);
-void Write_BMP_Register(uint8_t reg, uint8_t data);
+void BMP280_Register_Write(uint8_t reg, uint8_t data);
 uint8_t Read_MPU_Register(uint8_t reg);
-uint8_t Read_BMP_Register(uint8_t reg);
+uint8_t BMP280_Register_Read(uint8_t reg);
 void Read_IMU_All();
 void Read_BMP_All();
 

@@ -4,7 +4,7 @@
 
 uint8_t mpuDataBuffer[14];
 uint8_t magDataBuffer[7];
-uint8_t bmpDataBuffer[6];
+uint8_t bmp_rx_buf[6];
 
 IMUCalibrationData_t imuCalibData;
 bmp_calib_t bmp_calib;
@@ -15,7 +15,7 @@ static void Init_BMP_Hardware(void);
 static void Init_ICM_Hardware(void);
 static void ICM_SelectBank(uint8_t bank);
 
-static void Read_BMP_Calibration(void);
+static void BMP280_Calibration_Read(void);
 static void BMP_Compensate_T(int32_t adc_T);
 static void BMP_Compensate_P(int32_t adc_P);
 static void BMP_GetAltitude();
@@ -197,9 +197,9 @@ void Init_ICM_Hardware(void) {
 
 void Init_BMP_Hardware(void) {
     #ifdef BMP280
-    Write_BMP_Register(BMP_CTRL_MEAS, 0x27); // normal mode, temp and pressure oversampling x1
-    Write_BMP_Register(BMP_CONFIG, 0xA0);    // standby 1000ms, filter off
-    Read_BMP_Calibration();
+    BMP280_Register_Write(BMP_CTRL_MEAS, 0x27); // normal mode, temp and pressure oversampling x1
+    BMP280_Register_Write(BMP_CONFIG, 0xA0);    // standby 1000ms, filter off
+    BMP280_Calibration_Read();
     #endif //#ifdef BMP280
 }
 
@@ -229,7 +229,7 @@ void Write_MPU_Register(uint8_t reg, uint8_t data) {
     #endif // #ifdef COMMUNICATION_TYPE_SPI
 }
 
-void Write_BMP_Register(uint8_t reg, uint8_t data) {
+void BMP280_Register_Write(uint8_t reg, uint8_t data) {
     #ifdef COMMUNICATION_TYPE_SPI
     MPU_SPI_CS_OFF();
     BMP_SPI_CS_ON();
@@ -246,7 +246,7 @@ uint8_t Read_MPU_Register(uint8_t reg) {
     return 0;
 }
 
-uint8_t Read_BMP_Register(uint8_t reg) {
+uint8_t BMP280_Register_Read(uint8_t reg) {
     uint8_t v;
     BMP_SPI_CS_ON();
     for (volatile int i = 0; i < 200; ++i); // short settle delay
@@ -332,16 +332,16 @@ void Read_BMP_All(void) {
     // send register address with Read bit (typically MSB=1 for BMP SPI read)
     (void)spi_transfer_byte((uint8_t)(0xF7 | 0x80)); // Example register for BMP data
     for (int i = 0; i < 6; ++i) { // assuming 6 bytes of data
-        bmpDataBuffer[i] = spi_transfer_byte(0xFF);
+        bmp_rx_buf[i] = spi_transfer_byte(0xFF);
     }
     BMP_SPI_CS_OFF();
     #endif // #ifdef COMMUNICATION_TYPE_SPI
     #endif // #ifdef BMP280
 }
 
-void Read_BMP_Calibration(void) {
+void BMP280_Calibration_Read(void) {
     uint8_t b[24];
-    for (int i = 0; i < 24; ++i) b[i] = Read_BMP_Register(0x88 + i);
+    for (int i = 0; i < 24; ++i) b[i] = BMP280_Register_Read(0x88 + i);
     bmp_calib.dig_T1 = (uint16_t)(b[1] << 8 | b[0]);
     bmp_calib.dig_T2 = (int16_t)(b[3] << 8 | b[2]);
     bmp_calib.dig_T3 = (int16_t)(b[5] << 8 | b[4]);
