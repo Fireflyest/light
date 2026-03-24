@@ -54,8 +54,10 @@ project:
         - file: ./Middlewares/Algorithm/src/pid.c
         - file: ./Middlewares/Algorithm/src/spatial_math.c
         - file: ./Middlewares/Algorithm/src/state_estimator.c
+        - file: ./Middlewares/Algorithm/src/ekf_state6.c
         - file: ./Middlewares/Modules/src/battery.c
         - file: ./Middlewares/Modules/src/ble.c
+        - file: ./Middlewares/Modules/src/calibrate.c
         - file: ./Middlewares/Modules/src/fps.c
         - file: ./Middlewares/Modules/src/key.c
         - file: ./Middlewares/Modules/src/led.c
@@ -66,7 +68,7 @@ project:
         - file: ./Middlewares/src/kalman.c
         - file: ./Middlewares/Modules/src/attitude.c
         - file: ./Middlewares/Modules/src/locate.c
-        - file: ./Middlewares/src/control.c
+        # - file: ./Middlewares/src/control.c
         - file: ./Middlewares/UI/src/bmp.c
         - file: ./Middlewares/UI/src/font.c
         - file: ./Middlewares/UI/src/gfx.c

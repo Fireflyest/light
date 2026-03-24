@@ -35,6 +35,7 @@ void Spatial_QuatRotateVector(sm_vec3_t v, const sm_quat_t q);
 void Spatial_QuatConjugate(sm_quat_t q);
 void Spatial_QuatMultiply(sm_quat_t out, const sm_quat_t q1, const sm_quat_t q2);
 void Spatial_QuatGetEuler(float *yaw, float *pitch, float *roll, const sm_quat_t q);
+float Spatial_QuatAngleBetween(const sm_quat_t q1, const sm_quat_t q2);
 
 
 #endif /* __SPATIAL_MATH_H */

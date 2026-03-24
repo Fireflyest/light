@@ -152,10 +152,14 @@ void UI_Cube_Draw(UI_Widget* widget) {
     Vector3D halfExtent = { 20.0f, 20.0f, 20.0f }; // larger half-size for clearer view
 
     Quaternion q;
-    q.w = imu_ekf.q_corr[0];
-    q.x = -imu_ekf.q_corr[1]; // 取负号即为共轭 (Inverse rotation)
-    q.y = -imu_ekf.q_corr[2];
-    q.z = -imu_ekf.q_corr[3];
+    // q.w = imu_ekf.q_corr[0];
+    // q.x = -imu_ekf.q_corr[1]; // 取负号即为共轭 (Inverse rotation)
+    // q.y = -imu_ekf.q_corr[2];
+    // q.z = -imu_ekf.q_corr[3];
+    q.w = imu_ekf.x[0];
+    q.x = -imu_ekf.x[1]; // 取负号即为共轭 (Inverse rotation)
+    q.y = -imu_ekf.x[2];
+    q.z = -imu_ekf.x[3];
 
     GFX3D_DrawCube(&center, &halfExtent, &q, GFX_COLOR_WHITE);
 
@@ -188,9 +192,17 @@ void UI_Cube_Draw(UI_Widget* widget) {
     GFX3D_DrawLine(&pStart, &pEnd, GFX_COLOR_WHITE);
 
     // show logic FPS
-    char fpsLine[20];
-    snprintf(fpsLine, sizeof(fpsLine), "FPS: %d", FPS_Get());
-    GFX_DrawString(0, 0, fpsLine, GFX_COLOR_WHITE);
+    char line[20];
+    snprintf(line, sizeof(line), "FPS: %d", FPS_Get());
+    GFX_DrawString(0, 0, line, GFX_COLOR_WHITE);
+
+    uint8_t still;
+    Attitude_IsStill(&still);
+    snprintf(line, sizeof(line), "S: %d", still);
+    GFX_DrawString(0, 10, line, GFX_COLOR_WHITE);
+    snprintf(line, sizeof(line), "F: %d", accel_face);
+    GFX_DrawString(0, 20, line, GFX_COLOR_WHITE);
+
     // show screen FPS
     #ifndef SYNC_FPS_TO_SCREEN_REFRESH
     snprintf(fpsLine, sizeof(fpsLine), "SFPS: %d", screenFps);

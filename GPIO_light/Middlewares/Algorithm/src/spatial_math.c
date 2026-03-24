@@ -134,3 +134,7 @@ void Spatial_QuatGetEuler(float *yaw, float *pitch, float *roll, const sm_quat_t
     *roll = atan2f(2.0f * (q[1] * q[0] + q[2] * q[3]), q00 - q11 - q22 + q33);
 }
 
+float Spatial_QuatAngleBetween(const sm_quat_t q1, const sm_quat_t q2) {
+    float dot = q1[0]*q2[0] + q1[1]*q2[1] + q1[2]*q2[2] + q1[3]*q2[3];
+    return acosf(fminf(fabsf(dot), 1.0f)) * 2.0f;
+}

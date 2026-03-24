@@ -1,165 +1,200 @@
 #include "icm20948.h"
 
-uint8_t imu_tx_buf[IMU_DMA_LEN];
-uint8_t imu_rx_buf[IMU_DMA_LEN];
-uint8_t mag_rx_buf[6];
+// uint8_t imu_tx_buf[IMU_DMA_LEN];
+// uint8_t imu_rx_buf[IMU_DMA_LEN];
+// uint8_t mag_rx_buf[8];
 
-static uint8_t SPI_Transfer_Byte(uint8_t tx) {
-    // wait TXE
-    uint16_t timeout;
-    for (timeout = 0xFFFF; timeout > 0 && SPI_I2S_GetFlagStatus(SPI_IMU, SPI_I2S_FLAG_TXE) == RESET; timeout--);
+static void Delay_ms(uint32_t ms) {
+    uint32_t i, j;
+    for (i = 0; i < ms; i++)
+        for (j = 0; j < 8000; j++);
+}
+
+/* CS 控制 */
+static void CS_Low(void)  { GPIO_ResetBits(GPIO_IMU_SPI, GPIO_IMU_SPI_CS_PIN); }
+static void CS_High(void) { GPIO_SetBits(GPIO_IMU_SPI, GPIO_IMU_SPI_CS_PIN); }
+
+/* SPI 单字节传输 */
+static uint8_t SPI_Transfer(uint8_t tx) {
+    // uint16_t timeout;
+    // for (timeout = 0xFFFF; timeout > 0 && SPI_I2S_GetFlagStatus(SPI_IMU, SPI_I2S_FLAG_TXE) == RESET; timeout--);
+    while (SPI_I2S_GetFlagStatus(SPI_IMU, SPI_I2S_FLAG_TXE) == RESET);
     SPI_I2S_SendData(SPI_IMU, tx);
-    // wait RXNE
-    for (timeout = 0xFFFF; timeout > 0 && SPI_I2S_GetFlagStatus(SPI_IMU, SPI_I2S_FLAG_RXNE) == RESET; timeout--);
-    return (uint8_t)SPI_I2S_ReceiveData(SPI_IMU);
+    // for (timeout = 0xFFFF; timeout > 0 && SPI_I2S_GetFlagStatus(SPI_IMU, SPI_I2S_FLAG_RXNE) == RESET; timeout--);
+    while (SPI_I2S_GetFlagStatus(SPI_IMU, SPI_I2S_FLAG_RXNE) == RESET);
+    return SPI_I2S_ReceiveData(SPI_IMU);
 }
 
-static void ICM20948_Register_Write(uint8_t reg, uint8_t data) {
-    // cs on
-    GPIO_ResetBits(GPIO_IMU_SPI, GPIO_IMU_SPI_CS_PIN);
-    // send register address (ensure MSB = 0 for write)
-    (void)SPI_Transfer_Byte((uint8_t)(reg & 0x7F));
-    // send data
-    (void)SPI_Transfer_Byte(data);
-    // cs off
-    GPIO_SetBits(GPIO_IMU_SPI, GPIO_IMU_SPI_CS_PIN);
-}
+/* SPI 外设初始化 */
+void ICM20948_SPI_Init(void) {
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1, ENABLE);
 
-static void ICM_SelectBank(uint8_t bank) {
-    // ICM-20948 的 REG_BANK_SEL 地址是 0x7F，Bank 值位于位 [5:4]
-    ICM20948_Register_Write(REG_BANK_SEL, (bank << 4) & 0x30);
-}
+    SPI_I2S_DeInit(SPI_IMU);
 
-static void TIM_Config_For_IMU(void) {
-    TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
-    NVIC_InitTypeDef NVIC_InitStructure;
-
-    // 1. 开启 TIM2 时钟 (TIM2 在 APB1 总线上)
-    RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
-
-    // 2. 配置定时器参数 (假设系统主频 84MHz, APB1 频率 42MHz, 但 TIM2/3/4/5 频率会翻倍至 84MHz)
-    // 目标频率 = 84,000,000 / (84 * 1000) = 1000 Hz (1ms)
-    TIM_TimeBaseStructure.TIM_Period = 1000 - 1; 
-    TIM_TimeBaseStructure.TIM_Prescaler = 84 - 1; 
-    TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV1;
-    TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
-    TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure);
-
-    // 3. 配置 TIM2 更新中断 (Update Interrupt)
-    TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
-
-    // 4. 配置 NVIC 中断优先级
-    NVIC_InitStructure.NVIC_IRQChannel = TIM2_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1; // 优先级低于 SysTick 但高于 DMA 完成中断
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
-    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStructure);
-
-    TIM_Cmd(TIM2, ENABLE);
-}
-
-void ICM20948_Init(void) {
-    // SPI2 init (master, Mode 0)
-    SPI_I2S_DeInit(SPI2);
     SPI_InitTypeDef SPI_InitStructure;
+    /* SPI 配置 - Mode 0 (CPOL=0, CPHA=0) */
     SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
     SPI_InitStructure.SPI_Mode = SPI_Mode_Master;
     SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b;
-    SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low;        // Mode 0
+    SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low;
     SPI_InitStructure.SPI_CPHA = SPI_CPHA_1Edge;
     SPI_InitStructure.SPI_NSS = SPI_NSS_Soft;
-    SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_8; // adjust for speed
+    SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_32;
     SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
     SPI_InitStructure.SPI_CRCPolynomial = 7;
-    SPI_Init(SPI2, &SPI_InitStructure);
-    SPI_Cmd(SPI2, ENABLE);
 
-    ICM_SelectBank(0);
-    // 硬件复位
-    ICM20948_Register_Write(0x06, 0x80); 
-    for (volatile uint32_t i = 0; i < 0x000FFFFF; i++); 
-    // 解除睡眠并切换时钟
-    ICM20948_Register_Write(0x06, 0x01); 
-    
-    // 先复位 I2C Master，再启用 (参考 HAL 的 0x22 逻辑)
-    // 0x16 = I2C_IF_DIS | I2C_MST_RST | SRAM_RST
-    ICM20948_Register_Write(0x03, 0x16); 
-    for (volatile uint32_t i = 0; i < 0x0002FFFF; i++); 
-    ICM20948_Register_Write(0x03, 0x30); // 正式使能 Master 和禁用从机 I2C
-
-    ICM_SelectBank(3);
-    // 开启 P_NSR (Restart) 模式 (Bit 4) + 345.6kHz
-    // 0x17 = 0x10 (P_NSR) | 0x07 (Clock)
-    ICM20948_Register_Write(0x01, 0x17); 
-    ICM20948_Register_Write(0x02, 0x01); // 使能 Slave 0 延迟采样
-
-    // 磁力计软复位
-    ICM20948_Register_Write(0x03, 0x0C); // Mag 写地址
-    ICM20948_Register_Write(0x04, 0x32); // CNTL3
-    ICM20948_Register_Write(0x06, 0x01); // SRST
-    ICM20948_Register_Write(0x05, 0x81); // 触发单次写
-    for (volatile uint32_t i = 0; i < 0x0006FFFF; i++); 
-
-    // 设置磁力计连续模式
-    ICM20948_Register_Write(0x03, 0x0C); 
-    ICM20948_Register_Write(0x04, 0x31); // CNTL2
-    ICM20948_Register_Write(0x06, 0x08); // Mode 4 (100Hz)
-    ICM20948_Register_Write(0x05, 0x81); 
-    for (volatile uint32_t i = 0; i < 0x0007FFFF; i++);
-
-    // 从 ST1 (0x10) 开始读，长度设为 9 (含 ST1, 6轴数据, TMPS, ST2)
-    ICM20948_Register_Write(0x03, 0x80 | 0x0C); // Mag 读地址
-    ICM20948_Register_Write(0x04, 0x10);        // 从 ST1 开始读取
-    ICM20948_Register_Write(0x05, 0x89);        // 读取 9 字节
-
-    ICM_SelectBank(2);
-    // 配置量程
-    ICM20948_Register_Write(0x00, 0x04); // GYRO_SMPLRT_DIV
-    ICM20948_Register_Write(0x01, 0x1F); // ±2000dps + DLPF
-    ICM20948_Register_Write(0x14, 0x1D); // ±8g + DLPF
-    
-    ICM_SelectBank(0);
-
-    imu_tx_buf[0] = 0x80 | 0x2D; // 读起始地址 0x2D (Accel_X_H)
-    for(int i = 1; i < IMU_DMA_LEN; i++) imu_tx_buf[i] = 0xFF;
-
-    TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
-    NVIC_InitTypeDef NVIC_InitStructure;
-
-    // TIM_Config_For_IMU();
+    SPI_Init(SPI_IMU, &SPI_InitStructure);
+    SPI_Cmd(SPI_IMU, ENABLE);
 }
 
-void ICM20948_Read(void) {
-    // cs on
-    GPIO_ResetBits(GPIO_IMU_SPI, GPIO_IMU_SPI_CS_PIN);
+/* Bank 切换 */
+void ICM20948_Set_Bank(uint8_t bank) {
+    CS_Low();
+    SPI_Transfer(ICM20948_REG_BANK_SEL & 0x7F);  /* 写操作，去掉 0x80 */
+    SPI_Transfer((bank << 4) & 0x30);   /* Bank 值在 [5:4] 位 */
+    CS_High();
+}
 
-    // send register address with Read bit (typically MSB=1 for ICM SPI read)
-    (void)SPI_Transfer_Byte((uint8_t)(ICM_ACCEL_XOUT_H | 0x80));
-    for (int i = 0; i < 14; ++i) {
-        imu_rx_buf[i] = SPI_Transfer_Byte(0xFF);
+/* 读单寄存器 */
+uint8_t ICM20948_Read_Reg(uint8_t reg) {
+    uint8_t data;
+    CS_Low();
+    SPI_Transfer(reg | 0x80);
+    data = SPI_Transfer(0x00);
+    CS_High();
+    return data;
+}
+
+/* 写单寄存器 */
+void ICM20948_Write_Reg(uint8_t reg, uint8_t data) {
+    CS_Low();
+    SPI_Transfer(reg & 0x7F);
+    SPI_Transfer(data);
+    CS_High();
+}
+
+/* 连续读寄存器 */
+void ICM20948_Read_Regs(uint8_t reg, uint8_t *buf, uint16_t len) {
+    CS_Low();
+    SPI_Transfer(reg | 0x80);
+    for (uint16_t i = 0; i < len; i++) {
+        buf[i] = SPI_Transfer(0x00);
     }
+    CS_High();
+}
 
-    // cs off
-    GPIO_SetBits(GPIO_IMU_SPI, GPIO_IMU_SPI_CS_PIN);
+/* 单独读取 WHO_AM_I 用于调试 */
+uint8_t ICM20948_Read_WhoAmI(void) {
+    ICM20948_Set_Bank(0);  /* 确保在 Bank 0 */
+    return ICM20948_Read_Reg(ICM20948_REG_WHO_AM_I);
+}
 
-    // cs on
-    GPIO_ResetBits(GPIO_IMU_SPI, GPIO_IMU_SPI_CS_PIN);
-
-    (void)SPI_Transfer_Byte(ICM_EXT_SENS_DATA_00 | 0x80); // 0x49
-    uint8_t ext[9];
-    for (int i = 0; i < 9; i++) {
-        ext[i] = SPI_Transfer_Byte(0xFF);
-    }
-
-    // cs off
-    GPIO_SetBits(GPIO_IMU_SPI, GPIO_IMU_SPI_CS_PIN);
-
-    // for (int i = 0; i < 6; i++) {
-    //     mag_rx_buf[i] = ext[1 + i];
-    // }
-    if ((ext[0] & 0x01) && !(ext[8] & 0x08)) {
-        for (int i = 0; i < 6; i++) {
-            mag_rx_buf[i] = ext[1 + i];
+/* 读取磁力计 WHO_AM_I 用于调试 */
+uint8_t ICM20948_Read_MagWhoAmI(void) {
+    uint8_t mag_id = 0;
+    uint8_t addr_test[2] = {0x0C, 0x0D};
+    
+    ICM20948_Set_Bank(0);
+    
+    for (int i = 0; i < 2; i++) {
+        /* 临时配置 SLV0 读取磁力计 ID 寄存器 */
+        ICM20948_Write_Reg(ICM20948_REG_I2C_SLV0_ADDR, 0x80 | addr_test[i]);
+        ICM20948_Write_Reg(ICM20948_REG_I2C_SLV0_REG, AK09916_REG_WIA2);
+        ICM20948_Write_Reg(ICM20948_REG_I2C_SLV0_CTRL, 0x80 | 0x01);
+        
+        Delay_ms(30);
+        
+        mag_id = ICM20948_Read_Reg(ICM20948_REG_EXT_SENS_DATA_00);
+        
+        if (mag_id == 0x09) {
+            break;
         }
     }
+    
+    return mag_id;
+}
+
+/* 设备初始化 */
+void ICM20948_Init(void) {
+    ICM20948_SPI_Init();
+
+    uint8_t who_am_i;
+    uint8_t buffer[10];
+
+    /* 1. 复位 */
+    ICM20948_Set_Bank(0);
+    ICM20948_Write_Reg(ICM20948_REG_PWR_MGMT_1, BIT_RESET);
+    Delay_ms(100);
+
+    /* 2. 检查 ID */
+    who_am_i = ICM20948_Read_Reg(ICM20948_REG_WHO_AM_I);
+    // if (who_am_i != 0xEA) {
+    //     return;
+    // }
+
+    /* 3. 唤醒 (时钟源) */
+    ICM20948_Write_Reg(ICM20948_REG_PWR_MGMT_1, BIT_CLK_PLL);
+    Delay_ms(10);
+
+    /* 4. 禁用所有传感器功耗管理 */
+    ICM20948_Set_Bank(0);
+    ICM20948_Write_Reg(ICM20948_REG_PWR_MGMT_2, 0x00);
+
+    /* 5. 配置 USER_CTRL - 先复位 I2C Master */
+    ICM20948_Write_Reg(ICM20948_REG_USER_CTRL, BIT_I2C_MST_RST | BIT_I2C_IF_DIS);
+    Delay_ms(10);
+    
+    /* 6. 启用 I2C Master */
+    ICM20948_Write_Reg(ICM20948_REG_USER_CTRL, BIT_I2C_MST_EN | BIT_I2C_IF_DIS);
+    Delay_ms(10);
+
+    /* 7. 配置 Bank 3 */
+    ICM20948_Set_Bank(3);
+    ICM20948_Write_Reg(ICM20948_REG_I2C_MST_ODR_CONFIG, 0x01);
+    ICM20948_Set_Bank(0);
+    Delay_ms(10);
+
+    /* 8. 配置 I2C_MST_CTRL */
+    ICM20948_Write_Reg(ICM20948_REG_I2C_MST_CTRL, 0x07);  /* 360kHz */
+    Delay_ms(10);
+
+    /* 9. SLV0 写 - 磁力计软复位 */
+    ICM20948_Write_Reg(ICM20948_REG_I2C_SLV0_ADDR, AK09916_I2C_ADDR);
+    ICM20948_Write_Reg(ICM20948_REG_I2C_SLV0_REG, AK09916_REG_CNTL3);
+    ICM20948_Write_Reg(ICM20948_REG_I2C_SLV0_DO, AK09916_MODE_RESET);
+    ICM20948_Write_Reg(ICM20948_REG_I2C_SLV0_CTRL, 0x80 | 0x01);
+    Delay_ms(100);
+
+    /* 10. SLV0 写 - 磁力计连续模式 */
+    ICM20948_Write_Reg(ICM20948_REG_I2C_SLV0_ADDR, AK09916_I2C_ADDR);
+    ICM20948_Write_Reg(ICM20948_REG_I2C_SLV0_REG, AK09916_REG_CNTL2);
+    ICM20948_Write_Reg(ICM20948_REG_I2C_SLV0_DO, AK09916_MODE_CONT);
+    ICM20948_Write_Reg(ICM20948_REG_I2C_SLV0_CTRL, 0x80 | 0x01);
+    Delay_ms(150);
+
+    /* 11. 【关键】SLV1 读 - 从 ST1 开始读 8 字节 */
+    ICM20948_Write_Reg(ICM20948_REG_I2C_SLV1_ADDR, 0x80 | AK09916_I2C_ADDR);
+    ICM20948_Write_Reg(ICM20948_REG_I2C_SLV1_REG, AK09916_REG_ST1);
+    ICM20948_Write_Reg(ICM20948_REG_I2C_SLV1_CTRL, 0x80 | 0x08);
+    Delay_ms(100);
+
+    /* 12. 传感器量程 */
+    ICM20948_Set_Bank(2);
+    // ±2000dps: GYRO_FS_SEL=3 (bits [2:1] = 11)
+    ICM20948_Write_Reg(ICM20948_REG_GYRO_CONFIG_1, (3 << 1));
+    // ±16g: ACCEL_FS_SEL=3 (bits [2:1] = 11)
+    ICM20948_Write_Reg(ICM20948_REG_ACCEL_CONFIG, (3 << 1));
+    ICM20948_Write_Reg(ICM20948_REG_ACCEL_CONFIG_2, 0x03);
+    ICM20948_Set_Bank(0);
+}
+
+/* 读取所有传感器数据 */
+void ICM20948_Read(uint8_t *imu_rx_buf, uint8_t *mag_rx_buf) {
+    ICM20948_Set_Bank(0);
+
+    /* 读取 IMU 数据 (Accel 6 + Gyro 6 + Temp 2 = 14 字节) */
+    ICM20948_Read_Regs(ICM20948_REG_ACCEL_OUT_H, imu_rx_buf, 14);
+
+    /* 读取磁力计数据 (6 字节 XYZ 和状态，从 EXT_SENS_DATA_00 开始) */
+    ICM20948_Read_Regs(ICM20948_REG_EXT_SENS_DATA_00, mag_rx_buf, 6);
 }
