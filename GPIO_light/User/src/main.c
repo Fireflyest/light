@@ -55,6 +55,13 @@ int main() {
     Delay_ms(50);
     // Init_DMA_For_IMU_SPI2_TIM2(imu_tx_buf, imu_rx_buf);
     UI_Logger_AddLine(&logWindow, "IMU Init OK");
+    uint8_t who_am_i = ICM20948_Read_WhoAmI();
+    uint8_t mag_who_am_i = ICM20948_Read_MagWhoAmI();
+    char buf[64];
+    snprintf(buf, sizeof(buf), "ICM20948: 0x%02X", who_am_i);
+    UI_Logger_AddLine(&logWindow, buf);
+    snprintf(buf, sizeof(buf), "AK09916: 0x%02X", mag_who_am_i);
+    UI_Logger_AddLine(&logWindow, buf);
 
     Attitude_Init();
     UI_Logger_AddLine(&logWindow, "Attitude Init OK");
@@ -67,7 +74,7 @@ int main() {
         Key_Toggle_Handler();
         LED_Toggle_Handler();
 
-        ICM20948_Read();
+        ICM20948_Read(imu_rx_buf, mag_rx_buf);
         BMP280_Read();
         Battery_Measure_Step();
 
@@ -81,6 +88,16 @@ int main() {
             } else {
                 Window_To(WINDOW_NONE);
             }
+        }
+
+        uint8_t buffer[12] = {0};
+        uint16_t len = 0;
+        if (bleRxStatusUart1 == BLE_RX_STATE_COMPLETE) {
+            len = BLE_ReadData(buffer);
+            BLE_WriteData(buffer, len); // Echo back received data
+        }
+        if (len > 0) {
+            UI_Logger_AddLine(&logWindow, (char*)buffer);
         }
 
         Window_Render();

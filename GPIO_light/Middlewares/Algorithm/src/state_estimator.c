@@ -40,25 +40,79 @@ void Estimator_Attitude_Update(Estimator_Attitude_EKF_t *est,
     sm_vec3_t accel_n; memcpy(accel_n, accel, sizeof(accel_n));
     sm_vec3_t mag_n;   memcpy(mag_n, mag, sizeof(mag_n));
     Spatial_Vec3Normalize(accel_n);
-    Spatial_Vec3Normalize(mag_n);
+    uint8_t mag_valid = !(fabsf(mag[0]) < 1e-3f && fabsf(mag[1]) < 1e-3f && fabsf(mag[2]) < 1e-3f);
+    if (mag_valid != 0) {
+        Spatial_Vec3Normalize(mag_n);
+    }
 
     sm_vec3_t omega = {gyro[0] - est->gyro_bias[0],
                        gyro[1] - est->gyro_bias[1],
                        gyro[2] - est->gyro_bias[2]};
 
-    sm_quat_t q0 = {est->q[0], est->q[1], est->q[2], est->q[3]};
+    // sm_quat_t q0 = {est->q[0], est->q[1], est->q[2], est->q[3]};
+    // sm_quat_t qdot;
+    // qdot[0] = 0.0f;
+    // qdot[1] = 0.5f * ( omega[0]*q0[0] + omega[1]*q0[3] - omega[2]*q0[2]);
+    // qdot[2] = 0.5f * ( omega[1]*q0[0] - omega[0]*q0[3] + omega[2]*q0[1]);
+    // qdot[3] = 0.5f * ( omega[2]*q0[0] + omega[0]*q0[2] - omega[1]*q0[1]);
+
+    // est->q[0] = q0[0] + qdot[0] * dt;
+    // est->q[1] = q0[1] + qdot[1] * dt;
+    // est->q[2] = q0[2] + qdot[2] * dt;
+    // est->q[3] = q0[3] + qdot[3] * dt;
+    // Spatial_QuatNormalize(est->q);
+
+    sm_vec3_t g_b, m_b;
+    sm_vec3_t ref_g = {0.0f, 0.0f, 1.0f};
+    sm_vec3_t ref_m = {est->mag_ref[0], est->mag_ref[1], est->mag_ref[2]};
+
+    Spatial_RotatePointByQuat(g_b, ref_g, est->q);
+    Spatial_Vec3Normalize(g_b);
+
+    if (mag_valid) {
+        Spatial_RotatePointByQuat(m_b, ref_m, est->q);
+        Spatial_Vec3Normalize(m_b);
+    }
+
+    sm_vec3_t err_acc, err_mag, total_err;
+    Spatial_Vec3Cross(err_acc, g_b, accel_n);
+
+    if (mag_valid) {
+        Spatial_Vec3Cross(err_mag, m_b, mag_n);
+        total_err[0] = err_acc[0] + err_mag[0];
+        total_err[1] = err_acc[1] + err_mag[1];
+        total_err[2] = err_acc[2] + err_mag[2];
+    } else {
+        total_err[0] = err_acc[0];
+        total_err[1] = err_acc[1];
+        total_err[2] = err_acc[2];
+    }
+
+    if (est->Ki > 0.0f) {
+        est->gyro_bias[0] += est->Ki * total_err[0] * dt;
+        est->gyro_bias[1] += est->Ki * total_err[1] * dt;
+        est->gyro_bias[2] += est->Ki * total_err[2] * dt;
+    }
+
+    est->gyro_corr[0] = omega[0] + est->Kp * total_err[0];
+    est->gyro_corr[1] = omega[1] + est->Kp * total_err[1];
+    est->gyro_corr[2] = omega[2] + est->Kp * total_err[2];
+
     sm_quat_t qdot;
     qdot[0] = 0.0f;
-    qdot[1] = 0.5f * ( omega[0]*q0[0] + omega[1]*q0[3] - omega[2]*q0[2]);
-    qdot[2] = 0.5f * ( omega[1]*q0[0] - omega[0]*q0[3] + omega[2]*q0[1]);
-    qdot[3] = 0.5f * ( omega[2]*q0[0] + omega[0]*q0[2] - omega[1]*q0[1]);
+    qdot[1] = 0.5f * (est->gyro_corr[0] * est->q[0] + est->gyro_corr[1] * est->q[3] - est->gyro_corr[2] * est->q[2]);
+    qdot[2] = 0.5f * (est->gyro_corr[1] * est->q[0] - est->gyro_corr[0] * est->q[3] + est->gyro_corr[2] * est->q[1]);
+    qdot[3] = 0.5f * (est->gyro_corr[2] * est->q[0] + est->gyro_corr[0] * est->q[2] - est->gyro_corr[1] * est->q[1]);
 
-    est->q[0] = q0[0] + qdot[0] * dt;
-    est->q[1] = q0[1] + qdot[1] * dt;
-    est->q[2] = q0[2] + qdot[2] * dt;
-    est->q[3] = q0[3] + qdot[3] * dt;
+    est->q[0] += qdot[0] * dt;
+    est->q[1] += qdot[1] * dt;
+    est->q[2] += qdot[2] * dt;
+    est->q[3] += qdot[3] * dt;
     Spatial_QuatNormalize(est->q);
 
+    memcpy(est->q_corr, est->q, sizeof(est->q_corr));
+
+    // P 预测（保留原逻辑）
     float F_data[49] = {0};
     for (int i = 0; i < 7; i++) F_data[i*7 + i] = 1.0f;
     arm_matrix_instance_f32 F;
@@ -68,45 +122,12 @@ void Estimator_Attitude_Update(Estimator_Attitude_EKF_t *est,
     arm_mat_init_f32(&P_temp, 7, 7, P_temp_buf);
     arm_mat_mult_f32(&F, &est->P, &P_temp);
     arm_mat_mult_f32(&P_temp, &F, &est->P);
-    for (int i = 0; i < 7; i++) est->P_data[i*7+i] += (i<4 ? est->Q_angle : est->Q_gyro) * dt;
-
-    sm_vec3_t g_b, m_b;
-    sm_vec3_t ref_g = {0.0f, 0.0f, 1.0f};
-    sm_vec3_t ref_m = {est->mag_ref[0], est->mag_ref[1], est->mag_ref[2]};
-    Spatial_RotatePointByQuat(g_b, ref_g, est->q);
-    Spatial_RotatePointByQuat(m_b, ref_m, est->q);
-
-    sm_vec3_t err_acc, err_mag, total_err;
-    Spatial_Vec3Cross(err_acc, accel_n, g_b);
-    Spatial_Vec3Cross(err_mag, mag_n, m_b);
-    total_err[0] = err_acc[0] + err_mag[0];
-    total_err[1] = err_acc[1] + err_mag[1];
-    total_err[2] = err_acc[2] + err_mag[2];
-
-    est->Kp = 2.0f;
-    est->Ki = 0.001f;
-    est->gyro_corr[0] = omega[0] + est->Kp * total_err[0];
-    est->gyro_corr[1] = omega[1] + est->Kp * total_err[1];
-    est->gyro_corr[2] = omega[2] + est->Kp * total_err[2];
-    est->gyro_bias[0] += est->Ki * total_err[0] * dt;
-    est->gyro_bias[1] += est->Ki * total_err[1] * dt;
-    est->gyro_bias[2] += est->Ki * total_err[2] * dt;
-
-    sm_quat_t q1 = {est->q[0], est->q[1], est->q[2], est->q[3]};
-    sm_quat_t qdot2;
-    qdot2[0] = 0.0f;
-    qdot2[1] = 0.5f * (est->gyro_corr[0]*q1[0] + est->gyro_corr[1]*q1[3] - est->gyro_corr[2]*q1[2]);
-    qdot2[2] = 0.5f * (est->gyro_corr[1]*q1[0] - est->gyro_corr[0]*q1[3] + est->gyro_corr[2]*q1[1]);
-    qdot2[3] = 0.5f * (est->gyro_corr[2]*q1[0] + est->gyro_corr[0]*q1[2] - est->gyro_corr[1]*q1[1]);
-
-    est->q[0] = q1[0] + qdot2[0] * dt;
-    est->q[1] = q1[1] + qdot2[1] * dt;
-    est->q[2] = q1[2] + qdot2[2] * dt;
-    est->q[3] = q1[3] + qdot2[3] * dt;
-    Spatial_QuatNormalize(est->q);
-
-    memcpy(est->q_corr, est->q, sizeof(est->q));
+    for (int i = 0; i < 7; i++) {
+        est->P_data[i*7 + i] += (i < 4 ? est->Q_angle : est->Q_gyro) * dt;
+    }
 }
+
+
 
 /**
  * @brief 初始化高度估计器

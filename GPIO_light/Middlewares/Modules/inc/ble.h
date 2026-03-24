@@ -22,6 +22,9 @@ extern __IO uint8_t bleRxStatusUart1;
 void BLE_Init(uint32_t baudrate);
 
 uint16_t BLE_ReadData(uint8_t* data);
+void BLE_HandleCommand(void);
+
+
 void BLE_WriteData(uint8_t* data, uint16_t size);
 
 #endif /* __BLE_H */
