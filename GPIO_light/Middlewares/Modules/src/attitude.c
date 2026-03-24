@@ -7,6 +7,8 @@
 
 uint8_t imu_rx_buf[14];
 uint8_t mag_rx_buf[6];
+float altitude_rx;
+float temperature_rx;
 
 sm_quat_t last_quat;
 LowPass_Filter_t is_still;
@@ -21,15 +23,23 @@ static const float deg2rad = 0.01745329f;
 static const float g = 9.80665f;
 
 
-void Attitude_Init(void) {
+void Attitude_Init(sm_vec3_t accel_bias, sm_vec3_t accel_scale) {
     // sm_vec3_t mag_ref = {1.0f, 0.0f, 0.0f}; // 需标定或配置，单位向量
     // Estimator_Attitude_Init(&imu_ekf, mag_ref);
 
     EKF_Init(&imu_ekf);
     LowPass_Filter_Init(&is_still, 0.1f, 0); // 初始化低通滤波器，alpha=0.1，初始输出为0
 
-    Calibrate_Init(&calib_handle);
-    Calibrate_Start(&calib_handle);
+    if (accel_bias[0] != 0 && accel_scale[0] != 1.0f) {
+        accel_calib.is_valid = 1;
+        for (int i = 0; i < 3; i++) {
+            accel_calib.bias[i] = accel_bias[i];
+            accel_calib.scale[i] = accel_scale[i];
+        }
+    } else {
+        Calibrate_Init(&calib_handle);
+        Calibrate_Start(&calib_handle);
+    }
 }
 
 void Attitude_Update(float dt) {
@@ -54,6 +64,7 @@ void Attitude_Update(float dt) {
         Calibrate_AddSample(&calib_handle, accel, accel_face);
         if (calib_handle.state == CALIB_DONE) {
             accel_calib = calib_handle.calib;
+            Persistence_WriteCalibData(-1, accel_calib.bias, accel_calib.scale);
         }
     }
 
@@ -65,7 +76,7 @@ void Attitude_Update(float dt) {
         accel[2] = calibrated_accel[2];
     }
     
-    EKF_Update(&imu_ekf, accel, gyro, dt);
+    EKF_Update(&imu_ekf, accel, gyro, altitude_rx, dt);
 }
 
 void Attitude_IsStill(uint8_t *still) {

@@ -202,6 +202,8 @@ void UI_Cube_Draw(UI_Widget* widget) {
     GFX_DrawString(0, 10, line, GFX_COLOR_WHITE);
     snprintf(line, sizeof(line), "F: %d", accel_face);
     GFX_DrawString(0, 20, line, GFX_COLOR_WHITE);
+    snprintf(line, sizeof(line), "H: %d", (int)EKF_GetAltitude(&imu_ekf));
+    GFX_DrawString(0, 30, line, GFX_COLOR_WHITE);
 
     // show screen FPS
     #ifndef SYNC_FPS_TO_SCREEN_REFRESH

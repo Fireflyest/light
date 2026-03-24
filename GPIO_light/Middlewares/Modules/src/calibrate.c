@@ -23,7 +23,6 @@ void Calibrate_Start(Calib_Handle_t *handle)
 {
     handle->state = CALIB_COLLECTING;
     handle->current_face = 0;
-    handle->total_samples = 0;
     handle->sample_count = 0;
     
     for (int face = 0; face < 6; face++) {
@@ -54,22 +53,19 @@ void Calibrate_AddSample(Calib_Handle_t *handle, const float accel[3], uint8_t f
     }
 
     // 存储原始样本（用于最小二乘）
-    if (handle->sample_count < 600) {
+    if (handle->face_count[face] < CALIB_SAMPLES_PER_FACE) {
         handle->samples[handle->sample_count][0] = accel[0];
         handle->samples[handle->sample_count][1] = accel[1];
         handle->samples[handle->sample_count][2] = accel[2];
         handle->sample_count++;
-    }
-
-    handle->face_count[face]++;
-    handle->total_samples++;
-
-    if (handle->face_count[face] >= CALIB_SAMPLES_PER_FACE) {
+    } else {
         handle->face_done[face] = 1;
-        if (face == 5) {
+        if (face >= 5) {
             Calibrate_Compute(handle);
         }
     }
+
+    handle->face_count[face]++;
 }
 
 uint8_t Calibrate_IsFaceDone(Calib_Handle_t *handle, uint8_t face) {

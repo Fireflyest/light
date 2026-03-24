@@ -14,9 +14,9 @@ static int32_t t_fine;
 static uint8_t lowPassInited = 0;
 static uint8_t locateFiltInited = 0;
 
-static void BMP_Compensate_T(int32_t adc_T);
-static void BMP_Compensate_P(int32_t adc_P);
-static void BMP_GetAltitude();
+static void BMP280_Compensate_T(int32_t adc_T);
+static void BMP280_Compensate_P(int32_t adc_P);
+static void BMP280_GetAltitude();
 
 
 void Locate_Init() {
@@ -26,8 +26,8 @@ void Locate_Init() {
 void Locate_Update(float dt, float32_t q[4]) {
     uint32_t adc_P = ((uint32_t)bmp_rx_buf[0] << 12) | ((uint32_t)bmp_rx_buf[1] << 4) | ((bmp_rx_buf[2] >> 4) & 0x0F);
     uint32_t adc_T = ((uint32_t)bmp_rx_buf[3] << 12) | ((uint32_t)bmp_rx_buf[4] << 4) | ((bmp_rx_buf[5] >> 4) & 0x0F);
-    BMP_Compensate_T(adc_T);
-    BMP_Compensate_P(adc_P);
+    BMP280_Compensate_T(adc_T);
+    BMP280_Compensate_P(adc_P);
 
     if (!lowPassInited) {
         LowPass_Filter_Init(&tempFilt, 1.0f, temperature);
@@ -40,7 +40,7 @@ void Locate_Update(float dt, float32_t q[4]) {
     LowPass_UpdateWithTau(&pressFilt, barometricPressure, PRESS_TAU, dt);
     barometricPressure = pressFilt.output;
 
-    BMP_GetAltitude();
+    BMP280_GetAltitude();
 
     float ax = (int16_t)((mpuDataBuffer[0] << 8) | mpuDataBuffer[1]) / 4096.0f * 9.81f;
     float ay = (int16_t)((mpuDataBuffer[2] << 8) | mpuDataBuffer[3]) / 4096.0f * 9.81f;
@@ -77,14 +77,14 @@ void Locate_Update(float dt, float32_t q[4]) {
 }
 
 
-void BMP_Compensate_T(int32_t adc_T) {
+void BMP280_Compensate_T(int32_t adc_T) {
     int32_t var1 = ((((adc_T >> 3) - ((int32_t)bmp_calib.dig_T1 << 1))) * ((int32_t)bmp_calib.dig_T2)) >> 11;
     int32_t var2 = (((((adc_T >> 4) - ((int32_t)bmp_calib.dig_T1)) * ((adc_T >> 4) - ((int32_t)bmp_calib.dig_T1))) >> 12) * ((int32_t)bmp_calib.dig_T3)) >> 14;
     t_fine = var1 + var2;
     temperature = ((t_fine * 5 + 128) >> 8) / 100.0f;
 }
 
-void BMP_Compensate_P(int32_t adc_P) {
+void BMP280_Compensate_P(int32_t adc_P) {
     int64_t var1 = (int64_t)t_fine - 128000;
     int64_t var2 = var1 * var1 * (int64_t)bmp_calib.dig_P6;
     var2 = var2 + ((var1 * (int64_t)bmp_calib.dig_P5) << 17);
@@ -100,7 +100,7 @@ void BMP_Compensate_P(int32_t adc_P) {
     barometricPressure = p / 25600.0f + BAROMETERIC_PRESSURE_OFFSET; // convert fixed-point to float Pa
 }
 
-void BMP_GetAltitude() {
+void BMP280_GetAltitude() {
     float T = temperature + 273.15f; 
     // 0.190263 是 R*L/g 的常数
     const float EXP = 0.190263f; 

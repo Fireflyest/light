@@ -3,7 +3,7 @@
 
 #include "stm32f4xx.h"
 
-#define CALIB_SAMPLES_PER_FACE 600
+#define CALIB_SAMPLES_PER_FACE 300
 
 
 // 加速度计校准参数（6面校准）
@@ -32,9 +32,7 @@ typedef struct {
     uint32_t face_count[6];
     uint8_t current_face;  // 0-5
     
-    uint32_t total_samples;
-
-    float samples[CALIB_SAMPLES_PER_FACE * 6][3];  // 最多 600 个样本
+    float samples[CALIB_SAMPLES_PER_FACE * 6][3];
     uint32_t sample_count;
 } Calib_Handle_t;
 
