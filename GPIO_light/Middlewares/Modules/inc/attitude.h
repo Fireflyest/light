@@ -6,13 +6,16 @@
 
 // extern Estimator_Attitude_EKF_t imu_ekf;
 #include "stm32f4xx.h"
-#include "ekf_state6.h"
+#include "ekf_state7.h"
 #include "lowpass.h"
 #include "spatial_math.h"
 #include "calibrate.h"
+#include "persistence.h"
 
 extern uint8_t imu_rx_buf[14];
 extern uint8_t mag_rx_buf[6];
+extern float altitude_rx;
+extern float temperature_rx;
 // extern uint8_t bmp_rx_buf[6]
 
 extern sm_quat_t last_quat;
@@ -22,7 +25,7 @@ extern uint8_t accel_face;
 
 extern EKF_Handle_t imu_ekf;
 
-void Attitude_Init(void);
+void Attitude_Init(sm_vec3_t accel_bias, sm_vec3_t accel_scale);
 void Attitude_Update(float dt);
 void Attitude_IsStill(uint8_t *still);
 

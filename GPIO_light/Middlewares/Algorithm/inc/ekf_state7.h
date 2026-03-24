@@ -1,15 +1,29 @@
-#ifndef __EKF_STATE6_H
-#define __EKF_STATE6_H
+#ifndef __EKF_STATE7_H
+#define __EKF_STATE7_H
 
 #include "arm_math.h"
 
-// 状态向量维度: [q0, q1, q2, q3, bias_x, bias_y, bias_z]
-#define EKF_STATE_DIM 7
-#define EKF_MEAS_DIM 3
+// [q0, q1, q2, q3, bias_x, bias_y, bias_z, altitude]
+#define EKF_STATE_DIM 8
+#define EKF_MEAS_DIM  4
 
-// EKF结构体 
+#define EKF_IDX_Q0   0
+#define EKF_IDX_Q1   1
+#define EKF_IDX_Q2   2
+#define EKF_IDX_Q3   3
+#define EKF_IDX_BX   4
+#define EKF_IDX_BY   5
+#define EKF_IDX_BZ   6
+#define EKF_IDX_ALT  7
+
+#define EKF_OBS_AX   0
+#define EKF_OBS_AY   1
+#define EKF_OBS_AZ   2
+#define EKF_OBS_ALT  3
+
+// EKF结构体
 typedef struct {
-    // 状态向量
+    // 状态向量 [q0,q1,q2,q3, bias_x,bias_y,bias_z, altitude]
     float32_t x[EKF_STATE_DIM];
     // 协方差矩阵 (行优先存储)
     float32_t P_data[EKF_STATE_DIM * EKF_STATE_DIM];
@@ -28,8 +42,8 @@ typedef struct {
     arm_matrix_instance_f32 H;
     // 卡尔曼增益K
     float32_t K_data[EKF_STATE_DIM * EKF_MEAS_DIM];
-    arm_matrix_instance_f32 K; 
-    // 临时矩阵 (避免重复分配)
+    arm_matrix_instance_f32 K;
+    // 临时矩阵
     float32_t FP_data[EKF_STATE_DIM * EKF_STATE_DIM];
     arm_matrix_instance_f32 FP;
     float32_t Ft_data[EKF_STATE_DIM * EKF_STATE_DIM];
@@ -48,7 +62,7 @@ typedef struct {
     arm_matrix_instance_f32 KH;
     float32_t IKH_data[EKF_STATE_DIM * EKF_STATE_DIM];
     arm_matrix_instance_f32 IKH;
-    // 观测向量 
+    // 观测向量
     float32_t z[EKF_MEAS_DIM];
     float32_t h[EKF_MEAS_DIM];
     float32_t y[EKF_MEAS_DIM];
@@ -56,7 +70,8 @@ typedef struct {
 
 // 函数声明
 void EKF_Init(EKF_Handle_t *ekf);
-void EKF_Update(EKF_Handle_t *ekf, const float32_t accel[3], const float32_t gyro[3], float32_t dt);
-void EKF_GetEuler(const EKF_Handle_t *ekf, float32_t *roll, float32_t *pitch, float32_t *yaw); 
+void EKF_Update(EKF_Handle_t *ekf, const float32_t accel[3], const float32_t gyro[3], const float32_t baro_altitude, float32_t dt);
+void EKF_GetEuler(const EKF_Handle_t *ekf, float32_t *roll, float32_t *pitch, float32_t *yaw);
+float32_t EKF_GetAltitude(const EKF_Handle_t *ekf);
 
-#endif /* __EKF_STATE_H */
+#endif /* __EKF_STATE7_H */

@@ -46,6 +46,7 @@
 #include "bmp280.h"
 // #include "mpu.h"
 #include "attitude.h"
+#include "persistence.h"
 // #include "control.h"
 
 

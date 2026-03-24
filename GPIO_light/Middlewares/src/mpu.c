@@ -16,9 +16,9 @@ static void Init_ICM_Hardware(void);
 static void ICM_SelectBank(uint8_t bank);
 
 static void BMP280_Calibration_Read(void);
-static void BMP_Compensate_T(int32_t adc_T);
-static void BMP_Compensate_P(int32_t adc_P);
-static void BMP_GetAltitude();
+static void BMP280_Compensate_T(int32_t adc_T);
+static void BMP280_Compensate_P(int32_t adc_P);
+static void BMP280_GetAltitude();
 
 #ifdef COMMUNICATION_TYPE_SPI
 static inline void MPU_SPI_CS_ON(void)  { GPIO_ResetBits(GPIOB, GPIO_Pin_12); }

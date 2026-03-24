@@ -57,14 +57,21 @@ int main() {
     UI_Logger_AddLine(&logWindow, "IMU Init OK");
     uint8_t who_am_i = ICM20948_Read_WhoAmI();
     uint8_t mag_who_am_i = ICM20948_Read_MagWhoAmI();
+    uint8_t bmp_who_am_i = BMP280_Read_WhoAmI();
     char buf[64];
     snprintf(buf, sizeof(buf), "ICM20948: 0x%02X", who_am_i);
     UI_Logger_AddLine(&logWindow, buf);
     snprintf(buf, sizeof(buf), "AK09916: 0x%02X", mag_who_am_i);
     UI_Logger_AddLine(&logWindow, buf);
+    snprintf(buf, sizeof(buf), "BMP280: 0x%02X", bmp_who_am_i);
+    UI_Logger_AddLine(&logWindow, buf);
 
-    Attitude_Init();
-    UI_Logger_AddLine(&logWindow, "Attitude Init OK");
+    sm_vec3_t accel_bias = {0.0f, 0.0f, 0.0f};
+    sm_vec3_t accel_scale = {1.0f, 1.0f, 1.0f};
+    uint8_t read = Persistence_ReadCalibData(-1, accel_bias, accel_scale);
+    Attitude_Init(accel_bias, accel_scale);
+    snprintf(buf, sizeof(buf), "Flash: %d", read);
+    UI_Logger_AddLine(&logWindow, buf);
 
     for (;;) {
         FPS_StartFrame();
@@ -75,7 +82,8 @@ int main() {
         LED_Toggle_Handler();
 
         ICM20948_Read(imu_rx_buf, mag_rx_buf);
-        BMP280_Read();
+        BMP280_Read(&altitude_rx, &temperature_rx);
+
         Battery_Measure_Step();
 
         if (Key_PressConsume()) {
