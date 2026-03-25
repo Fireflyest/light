@@ -47,7 +47,7 @@
 // #include "mpu.h"
 #include "attitude.h"
 #include "persistence.h"
-// #include "control.h"
+#include "control.h"
 
 
 

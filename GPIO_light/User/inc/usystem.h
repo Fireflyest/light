@@ -7,7 +7,6 @@
 
 #include "board.h"
 
-# include "usart1.h"
 # include "dma.h"
 # include "key.h"
 # include "led.h"
@@ -24,7 +23,6 @@
 # include "battery.h"
 
 # include "attitude.h"
-# include "locate.h"
 # include "pid.h"
 # include "lowpass.h"
 # include "control.h"

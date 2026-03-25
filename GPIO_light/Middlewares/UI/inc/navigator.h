@@ -12,6 +12,7 @@
 #include "attitude.h"
 #include "fps.h"
 #include "battery.h"
+#include "control.h"
 // #include "mpu.h"
 
 #define WINDOW_NONE              0

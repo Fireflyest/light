@@ -152,14 +152,12 @@ void UI_Cube_Draw(UI_Widget* widget) {
     Vector3D halfExtent = { 20.0f, 20.0f, 20.0f }; // larger half-size for clearer view
 
     Quaternion q;
-    // q.w = imu_ekf.q_corr[0];
-    // q.x = -imu_ekf.q_corr[1]; // 取负号即为共轭 (Inverse rotation)
-    // q.y = -imu_ekf.q_corr[2];
-    // q.z = -imu_ekf.q_corr[3];
-    q.w = imu_ekf.x[0];
-    q.x = -imu_ekf.x[1]; // 取负号即为共轭 (Inverse rotation)
-    q.y = -imu_ekf.x[2];
-    q.z = -imu_ekf.x[3];
+    sm_quat_t current_quat;
+    Attitude_GetQuat(current_quat);
+    q.w = current_quat[0];
+    q.x = -current_quat[1]; // 取负号即为共轭 (Inverse rotation)
+    q.y = -current_quat[2];
+    q.z = -current_quat[3];
 
     GFX3D_DrawCube(&center, &halfExtent, &q, GFX_COLOR_WHITE);
 
@@ -197,28 +195,97 @@ void UI_Cube_Draw(UI_Widget* widget) {
     GFX_DrawString(0, 0, line, GFX_COLOR_WHITE);
 
     uint8_t still;
+    uint8_t accel_clib_face;
     Attitude_IsStill(&still);
+    Attitude_CalibratingFace(&accel_clib_face);
     snprintf(line, sizeof(line), "S: %d", still);
     GFX_DrawString(0, 10, line, GFX_COLOR_WHITE);
-    snprintf(line, sizeof(line), "F: %d", accel_face);
+    snprintf(line, sizeof(line), "F: %d", accel_clib_face);
     GFX_DrawString(0, 20, line, GFX_COLOR_WHITE);
-    snprintf(line, sizeof(line), "H: %d", (int)EKF_GetAltitude(&imu_ekf));
-    GFX_DrawString(0, 30, line, GFX_COLOR_WHITE);
+    {
+        float alt;
+        Attitude_GetAltitude(&alt);
+        float a = alt;
+        int sign = (a < 0.0f) ? -1 : 1;
+        if (sign < 0) a = -a;
 
-    // show screen FPS
-    #ifndef SYNC_FPS_TO_SCREEN_REFRESH
-    snprintf(fpsLine, sizeof(fpsLine), "SFPS: %d", screenFps);
-    GFX_DrawString(0, 10, fpsLine, GFX_COLOR_WHITE);
-    #endif
+        int intPart = (int)a;
+        int fracPart = (int)((a - (float)intPart) * 10.0f + 0.5f); // 一位小数并四舍五入
+        if (fracPart >= 10) { intPart += 1; fracPart = 0; }
+        if (sign < 0) intPart = -intPart;
 
-    // // show altitude
-    // char altLine[20];
-    // snprintf(altLine, sizeof(altLine), "Alt: %dm", (int) loc_ekf.h);
-    // GFX_DrawString(72, 0, altLine, GFX_COLOR_WHITE);
+        char altLine[16];
+        snprintf(altLine, sizeof(altLine), "H: %d.%d", intPart, fracPart);
+
+        GFX_DrawString(0, 30, altLine, GFX_COLOR_WHITE);    // 整数部分
+    }
 }
 
+static float pidErrorHistory[3][128] = {0}; // 0:roll, 1:pitch, 2:yaw
+static uint16_t pidErrorLen = 0;
 void UI_Pid_Draw(UI_Widget* widget) {
+    UI_Cube_Draw(widget); // 先画立方体作为背景参考
 
+    int x0 = widget->x + 2;
+    int y0 = widget->y + widget->h / 2; // 中线
+    int w = widget->w - 4;
+    int h = widget->h - 4;
+
+    // 获取当前误差
+    sm_vec3_t gyro;
+    Attitude_GetGyro(gyro);
+    float gx = gyro[0], gy = gyro[1], gz = gyro[2];
+    float errors[3] = {
+        (rateSetRoll - gx), 
+        (rateSetPitch - gy), 
+        (rateSetYaw - gz)
+    };
+
+    // 更新历史
+    if (pidErrorLen < w) {
+        for (int i = 0; i < 3; i++)
+            pidErrorHistory[i][pidErrorLen] = errors[i];
+        pidErrorLen++;
+    } else {
+        // 左移一格
+        for (int i = 0; i < 3; i++)
+            memmove(&pidErrorHistory[i][0], &pidErrorHistory[i][1], (w - 1) * sizeof(float));
+        for (int i = 0; i < 3; i++)
+            pidErrorHistory[i][w - 1] = errors[i];
+    }
+
+    static float globalScale = 0.1f; // 初始可视化幅度（单位与误差一致）
+    float curMax = 1e-6f;
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < pidErrorLen; j++)
+            if (fabsf(pidErrorHistory[i][j]) > curMax)
+                curMax = fabsf(pidErrorHistory[i][j]);
+
+    // 快速增长，缓慢衰减（调整下方因子以改变响应/回落速度）
+    if (curMax > globalScale) {
+        globalScale = curMax;
+    } else {
+        globalScale *= 0.995f; // 0.995 => 0.5x 需要约 ln(0.5)/ln(0.995) 帧数
+        if (globalScale < 1e-3f) globalScale = 1e-3f; // 下限保护
+    }
+
+    float scale = globalScale;
+
+    // 画三条线（逐点画像素）
+    for (int i = 0; i < 3; i++) {
+        uint16_t color = GFX_COLOR_WHITE;
+        int lastY = y0 - (int)(pidErrorHistory[i][0] / scale * (h / 2));
+        for (int j = 1; j < pidErrorLen; j++) {
+            int y = y0 - (int)(pidErrorHistory[i][j] / scale * (h / 2));
+            GFX_Line_Style style = i == 0 ? GFX_LINE_STYLE_THICK_DOT :
+                                  (i == 1 ? GFX_LINE_STYLE_ALTERNATE_2_1PX : GFX_LINE_STYLE_SINGLE_PIXEL);
+            GFX_DrawLineStyled(x0 + j - 1, lastY, x0 + j, y, color, style);
+            lastY = y;
+        }
+    }
+
+    // 画左侧中线原点
+    GFX_DrawPixel(x0, y0, GFX_COLOR_WHITE);
 }
 
 void UI_Accel_Calib_Draw(UI_Widget* widget) {
