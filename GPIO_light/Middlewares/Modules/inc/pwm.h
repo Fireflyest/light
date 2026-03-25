@@ -3,18 +3,26 @@
 
 # include "stm32f4xx.h"
 
-# define PWM_PERIOD     500    // PWM 周期
-# define PWM_PRESCALER  84       // 84MHz 时钟下，分频为 84 得到 1MHz 的计数频率
 
-# define PWM_MAX_DUTY   PWM_PERIOD          // 最大占空比
-# define PWM_MIN_DUTY   0                   // 最小占空比
-# define PWM_MAX_REAL   2000                // 硬件最大实际值
-# define PWM_MIN_REAL   1000                // 硬件最小实际值
+// 10kHz: 84MHz / 84 / 100 = 10kHz  → period=100, 精度太差
+// 10kHz: 84MHz / 1 / 8400 = 10kHz  → period=8400, 精度好
+// 8kHz:  84MHz / 1 / 10500 = 8kHz  → period=10500
+// 20kHz: 84MHz / 1 / 4200 = 20kHz  → period=4200
+
+#define PWM_TIM_CLOCK_HZ    84000000UL
+
+#define PWM_FREQ_HZ         10000
+
+#define PWM_PERIOD     (PWM_TIM_CLOCK_HZ / PWM_FREQ_HZ)       // 84MHz / 1 / 8400 = 10kHz
+#define PWM_PRESCALER  1          // 无分频
+
+#define PWM_MAX_DUTY   PWM_PERIOD
+#define PWM_MIN_DUTY   0
 
 
 extern uint16_t pwmDutyBuffer[4];
 
 void PWM_TIM_Init(uint16_t period, uint16_t prescaler);
-uint8_t PWM_Map_Percent(uint16_t percent);
+uint16_t PWM_Map_Percent(float percent);
 
 # endif /* __PWM_H */
