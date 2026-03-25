@@ -62,6 +62,8 @@ int main() {
     UI_Logger_AddLine(&logWindow, buf);
     snprintf(buf, sizeof(buf), "BMP280: 0x%02X", bmp_who_am_i);
     UI_Logger_AddLine(&logWindow, buf);
+    float height_init, temperature_init;
+    BMP280_Read(&height_init, &temperature_init);
 
     sm_vec3_t accel_bias = {0.0f, 0.0f, 0.0f};
     sm_vec3_t accel_scale = {1.0f, 1.0f, 1.0f};
@@ -83,6 +85,8 @@ int main() {
     PID_Init(&pidRateYaw, 0.10f, 0.0005f, 0.001f, -50.0f, 50.0f, 0.01f, -400.0f, 400.0f, 1.0f);
     RateControl_Init(RATE_LOOP_HZ);
     UI_Logger_AddLine(&logWindow, "Control Init OK");
+
+
 
     for (;;) {
         FPS_StartFrame();
@@ -113,7 +117,7 @@ int main() {
         }
 
         sm_quat_t q_target_ctrl = {1.0f, 0.0f, 0.0f, 0.0f};
-        RateControl_TargetAttitude(q_target_ctrl, 34.0f);
+        RateControl_TargetAttitude(q_target_ctrl, height_init);
 
         uint8_t buffer[12] = {0};
         uint16_t len = 0;

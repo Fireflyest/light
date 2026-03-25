@@ -25,12 +25,9 @@ static Accel_Calib_t accel_calib;
 
 static const float deg2rad = 0.01745329f;
 static const float g = 9.80665f;
-
+static const float still_threshold = 0.046f * deg2rad;
 
 void Attitude_Init(sm_vec3_t accel_bias, sm_vec3_t accel_scale) {
-    // sm_vec3_t mag_ref = {1.0f, 0.0f, 0.0f}; // 需标定或配置，单位向量
-    // Estimator_Attitude_Init(&imu_ekf, mag_ref);
-
     EKF_Init(&imu_ekf);
     LowPass_Filter_Init(&diff_angle_filter, 0.1f, 0); // 初始化低通滤波器，alpha=0.1，初始输出为0
     LowPass_Filter_Init(&altitude_filter, 0.1f, 0); // 初始化高度低通滤波器，alpha=0.1，初始输出为0
@@ -42,36 +39,25 @@ void Attitude_Init(sm_vec3_t accel_bias, sm_vec3_t accel_scale) {
             accel_calib.scale[i] = accel_scale[i];
         }
     } else {
-        Calibrate_Init(&calib_handle);
-        Calibrate_Start(&calib_handle);
+        Attitude_Calibrate();
     }
 }
 
 void Attitude_Update(float dt) {
     // 1. 获取物理单位数据 (以 dps 和 g 为单位)
-    float gx = ((int16_t)((imu_rx_buf[6] << 8) | imu_rx_buf[7])) / 16.4f * deg2rad;
-    float gy = ((int16_t)((imu_rx_buf[8] << 8) | imu_rx_buf[9])) / 16.4f * deg2rad;
-    float gz = ((int16_t)((imu_rx_buf[10] << 8) | imu_rx_buf[11])) / 16.4f * deg2rad;
+    gyro_current[0] = ((int16_t)((imu_rx_buf[6] << 8) | imu_rx_buf[7])) / 16.4f * deg2rad;
+    gyro_current[1] = ((int16_t)((imu_rx_buf[8] << 8) | imu_rx_buf[9])) / 16.4f * deg2rad;
+    gyro_current[2] = ((int16_t)((imu_rx_buf[10] << 8) | imu_rx_buf[11])) / 16.4f * deg2rad;
 
-    float ax = (int16_t)((imu_rx_buf[0] << 8) | imu_rx_buf[1]) / 2048.0f * g;
-    float ay = (int16_t)((imu_rx_buf[2] << 8) | imu_rx_buf[3]) / 2048.0f * g;
-    float az = (int16_t)((imu_rx_buf[4] << 8) | imu_rx_buf[5]) / 2048.0f * g;
+    accel_current[0] = (int16_t)((imu_rx_buf[0] << 8) | imu_rx_buf[1]) / 2048.0f * g;
+    accel_current[1] = (int16_t)((imu_rx_buf[2] << 8) | imu_rx_buf[3]) / 2048.0f * g;
+    accel_current[2] = (int16_t)((imu_rx_buf[4] << 8) | imu_rx_buf[5]) / 2048.0f * g;
 
-    float mx = (int16_t)((mag_rx_buf[1] << 8) | mag_rx_buf[0]) * 0.15f; // 0.15 μT/LSB
-    float my = (int16_t)((mag_rx_buf[3] << 8) | mag_rx_buf[2]) * 0.15f; // 0.15 μT/LSB
-    float mz = (int16_t)((mag_rx_buf[5] << 8) | mag_rx_buf[4]) * 0.15f; // 0.15 μT/LSB
+    mag_current[0] = (int16_t)((mag_rx_buf[1] << 8) | mag_rx_buf[0]) * 0.15f; // 0.15 μT/LSB
+    mag_current[1] = (int16_t)((mag_rx_buf[3] << 8) | mag_rx_buf[2]) * 0.15f; // 0.15 μT/LSB
+    mag_current[2] = (int16_t)((mag_rx_buf[5] << 8) | mag_rx_buf[4]) * 0.15f; // 0.15 μT/LSB
 
-    gyro_current[0] = gx;
-    gyro_current[1] = gy;
-    gyro_current[2] = gz;
-    accel_current[0] = ax;
-    accel_current[1] = ay;
-    accel_current[2] = az;
-    mag_current[0] = mx;
-    mag_current[1] = my;
-    mag_current[2] = mz;
-
-    if (calib_handle.state == CALIB_COLLECTING && diff_angle_filter.output < 0.04f * deg2rad) {
+    if (calib_handle.state == CALIB_COLLECTING && diff_angle_filter.output < still_threshold) {
         Calibrate_AddSample(&calib_handle, accel_current, accel_clib_face);
         if (calib_handle.state == CALIB_DONE) {
             accel_calib = calib_handle.calib;
@@ -98,7 +84,7 @@ void Attitude_IsStill(uint8_t *still) {
 
     float diff_angle = Spatial_QuatAngleBetween(current_quat, last_quat);
     LowPass_Update(&diff_angle_filter, diff_angle);
-    *still = diff_angle_filter.output < 0.04f * deg2rad;
+    *still = diff_angle_filter.output < still_threshold;
 
     if (diff_angle_filter.output > 3 * deg2rad && Calibrate_IsFaceDone(&calib_handle, accel_clib_face)) {
         accel_clib_face++;
@@ -133,6 +119,11 @@ void Attitude_GetAltitude(float *altitude) {
 }
 
 
+
+void Attitude_Calibrate(void) {
+    Calibrate_Init(&calib_handle);
+    Calibrate_Start(&calib_handle);
+}
 
 void Attitude_CalibratingFace(uint8_t *face) {
     *face = accel_clib_face;
