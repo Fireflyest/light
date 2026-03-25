@@ -24,6 +24,7 @@ void Attitude_GetAccel(sm_vec3_t accel);
 // void Attitude_GetMag(sm_vec3_t mag);
 void Attitude_GetAltitude(float *altitude);
 
+void Attitude_Calibrate(void);
 void Attitude_CalibratingFace(uint8_t *face);
 
 
