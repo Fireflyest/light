@@ -19,13 +19,13 @@ void PWM_TIM_Init(uint16_t period, uint16_t prescaler) {
     TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High; // 输出极性高
     TIM_OCInitStructure.TIM_Pulse = 0;
     TIM_OC1Init(TIM3, &TIM_OCInitStructure);
-    TIM_OC1PreloadConfig(TIM3, TIM_OCPreload_Disable);
+    TIM_OC1PreloadConfig(TIM3, TIM_OCPreload_Enable);
     TIM_OC2Init(TIM3, &TIM_OCInitStructure);
-    TIM_OC2PreloadConfig(TIM3, TIM_OCPreload_Disable);
+    TIM_OC2PreloadConfig(TIM3, TIM_OCPreload_Enable);
     TIM_OC3Init(TIM3, &TIM_OCInitStructure);
-    TIM_OC3PreloadConfig(TIM3, TIM_OCPreload_Disable);
+    TIM_OC3PreloadConfig(TIM3, TIM_OCPreload_Enable);
     TIM_OC4Init(TIM3, &TIM_OCInitStructure);
-    TIM_OC4PreloadConfig(TIM3, TIM_OCPreload_Disable);
+    TIM_OC4PreloadConfig(TIM3, TIM_OCPreload_Enable);
     
     TIM_ARRPreloadConfig(TIM3, ENABLE);
     

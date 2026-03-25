@@ -5,10 +5,9 @@
 
 PID_t pidRoll, pidPitch, pidYaw, pidHeight;
 PID_t pidRateRoll, pidRatePitch, pidRateYaw;
-float baseThrottle = 5.0f;
+float baseThrottle = 50.0f;
 __IO float rateSetRoll, rateSetPitch, rateSetYaw;
 __IO float thrustOutput;
-LowPass_Filter_t gyroFilt[3];
 
 void RateControl_Init(uint32_t freq) {
     // 启动 TIM4 时钟做 1kHz 更新
@@ -36,35 +35,20 @@ void RateControl_Init(uint32_t freq) {
     NVIC_Init(&NVIC_InitStructure);
 
     TIM_Cmd(TIM4, ENABLE);
-
-    // 初始化陀螺滤波器
-    float dt = 1.0f / (float)RATE_LOOP_HZ;
-    float alpha = dt / (GYRO_TAU + dt);
-    for (int i = 0; i < 3; i++) {
-        LowPass_Filter_Init((LowPass_Filter_t*)&gyroFilt[i], alpha, 0.0f);
-    }
 }
-
-
 
 // 内环执行（在 TIM4 中断上下文，尽量短小）
 // 读 gyro -> LPF -> rate PID -> motor mixing -> 写 pwmDutyBuffer
 void RateControl_Loop(void) {
     const float dt = 1.0f / (float)RATE_LOOP_HZ;
     // 读取陀螺（优先使用 imu_ekf 的速率字段，如果没有，回退到原始 mpuDataBuffer）
-    float gx = 0.0f, gy = 0.0f, gz = 0.0f;
-    gx = imu_ekf.gyro_corr[0];
-    gy = imu_ekf.gyro_corr[1];
-    gz = imu_ekf.gyro_corr[2];
+    sm_vec3_t gyro;
+    Attitude_GetGyro(gyro);
+    float gx = gyro[0], gy = gyro[1], gz = gyro[2];
 
-    LowPass_UpdateWithTau((LowPass_Filter_t*)&gyroFilt[0], gx, GYRO_TAU, dt);
-    LowPass_UpdateWithTau((LowPass_Filter_t*)&gyroFilt[1], gy, GYRO_TAU, dt);
-    LowPass_UpdateWithTau((LowPass_Filter_t*)&gyroFilt[2], gz, GYRO_TAU, dt);
-
-    // 内环 PID（setpoint: rateSet*, measurement: gyro_lp[*]）
-    float rollCtrl = PID_Update(&pidRateRoll, rateSetRoll, gyroFilt[0].output, dt);
-    float pitchCtrl = PID_Update(&pidRatePitch, rateSetPitch, gyroFilt[1].output, dt);
-    float yawCtrl = PID_Update(&pidRateYaw, rateSetYaw, gyroFilt[2].output, dt);
+    float rollCtrl  = PID_Update(&pidRateRoll,  rateSetRoll,  gx, dt);
+    float pitchCtrl = PID_Update(&pidRatePitch, rateSetPitch, gy, dt);
+    float yawCtrl   = PID_Update(&pidRateYaw,   rateSetYaw,   gz, dt);
 
     // motor mixing (百分比单位假设 0..100)，thrustOutput 由主循环设置
     float throttle = thrustOutput;
@@ -97,4 +81,27 @@ void RateControl_Loop(void) {
     pwmDutyBuffer[1] = PWM_Map_Percent(m[1]);
     pwmDutyBuffer[2] = PWM_Map_Percent(m[2]);
     pwmDutyBuffer[3] = PWM_Map_Percent(m[3]);
+}
+
+void RateControl_TargetAttitude(sm_quat_t q_target, float h_target) {
+    sm_quat_t q_corr;
+    Attitude_GetQuat(q_corr);
+    // 计算目标四元数的共轭
+    Spatial_QuatConjugate(q_target);
+    // 计算误差四元数：q_error = q_corr * q_target^*
+    sm_quat_t q_error;
+    Spatial_QuatMultiply(q_error, q_corr, q_target);
+    // 从误差四元数提取旋转轴和角度
+    float angle = 2.0f * acosf(q_error[0]);
+    sm_vec3_t axis = {q_error[1], q_error[2], q_error[3]};
+    Spatial_Vec3Normalize(axis);
+    Spatial_Vec3MultiplyScalar(axis, angle);
+    float current_height;
+    Attitude_GetAltitude(&current_height);
+    // PID 控制
+    rateSetRoll  = PID_Update(&pidRoll, axis[0], 0.0f, 1.0f / (float)RATE_LOOP_HZ);
+    rateSetPitch = PID_Update(&pidPitch, axis[1], 0.0f, 1.0f / (float)RATE_LOOP_HZ);
+    rateSetYaw   = PID_Update(&pidYaw, axis[2], 0.0f, 1.0f / (float)RATE_LOOP_HZ);
+    float heightOutput = PID_Update(&pidHeight, h_target, current_height, 1.0f / (float)RATE_LOOP_HZ);
+    thrustOutput = baseThrottle + heightOutput;
 }

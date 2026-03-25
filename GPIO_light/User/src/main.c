@@ -43,10 +43,7 @@ int main() {
     BLE_Init(BLE_BAUDRATE_115200);
     UI_Logger_AddLine(&logWindow, "UART Init OK");
 
-    PWM_GPIO_Init();
-    PWM_TIM_Init(PWM_PERIOD, PWM_PRESCALER);
-    Init_DMA_For_PWM_TIM3(pwmDutyBuffer);
-    UI_Logger_AddLine(&logWindow, "PWM Init OK");
+  
 
     // Load_Bias_Quaternion_From_Flash(&q_bias);
     SPI_IMU_GPIO_Init();
@@ -73,10 +70,25 @@ int main() {
     snprintf(buf, sizeof(buf), "Flash: %d", read);
     UI_Logger_AddLine(&logWindow, buf);
 
+    PWM_GPIO_Init();
+    PWM_TIM_Init(PWM_PERIOD, PWM_PRESCALER);
+    Init_DMA_For_PWM_TIM3(pwmDutyBuffer);
+
+    PID_Init(&pidRoll, 4.0f, 0.0f, 0.2f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
+    PID_Init(&pidPitch, 4.0f, 0.0f, 0.2f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
+    PID_Init(&pidYaw, 2.0f, 0.0f, 0.1f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
+    PID_Init(&pidHeight, 1.0f, 0.0f, 0.1f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
+    PID_Init(&pidRateRoll, 0.15f, 0.001f, 0.002f, -50.0f, 50.0f, 0.01f, -400.0f, 400.0f, 1.0f);
+    PID_Init(&pidRatePitch, 0.15f, 0.001f, 0.002f, -50.0f, 50.0f, 0.01f, -400.0f, 400.0f, 1.0f);
+    PID_Init(&pidRateYaw, 0.10f, 0.0005f, 0.001f, -50.0f, 50.0f, 0.01f, -400.0f, 400.0f, 1.0f);
+    RateControl_Init(RATE_LOOP_HZ);
+    UI_Logger_AddLine(&logWindow, "Control Init OK");
+
     for (;;) {
         FPS_StartFrame();
         
-        Attitude_Update(FPS_GetDeltaTime());
+        float dt = FPS_GetDeltaTime();
+        Attitude_Update(dt);
 
         Key_Toggle_Handler();
         LED_Toggle_Handler();
@@ -93,10 +105,15 @@ int main() {
                 Window_To(WINDOW_CUBE);
             } else if (Window_Current() == WINDOW_CUBE) {
                 Window_To(WINDOW_BATTERY);
-            } else {
+            } else if (Window_Current() == WINDOW_BATTERY) {
+                Window_To(WINDOW_PID);
+            } else if (Window_Current() == WINDOW_PID) {
                 Window_To(WINDOW_NONE);
             }
         }
+
+        sm_quat_t q_target_ctrl = {1.0f, 0.0f, 0.0f, 0.0f};
+        RateControl_TargetAttitude(q_target_ctrl, 34.0f);
 
         uint8_t buffer[12] = {0};
         uint16_t len = 0;
@@ -108,14 +125,16 @@ int main() {
             UI_Logger_AddLine(&logWindow, (char*)buffer);
         }
 
+
+        char pwm_status[64];
+        sprintf(pwm_status, "PWM: %d, %d, %d, %d\r\n", 
+                TIM3->CCR1, TIM3->CCR2, TIM3->CCR3, TIM3->CCR4);
+        BLE_WriteData(pwm_status, strlen(pwm_status));
+
+
         Window_Render();
 
         FPS_EndFrame();
     }
-
-    // Init_Control();                               // 控制初始化函数
-    // # ifdef DISPLAY_ENABLE
-    // UI_Logger_AddLine(&logWindow, "Control Init OK");
-    // # endif
 
 }

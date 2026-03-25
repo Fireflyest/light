@@ -202,14 +202,14 @@ void EKF_Init(EKF_Handle_t *ekf) {
     }
     // 高度
     ekf->P_data[7 * EKF_STATE_DIM + 7] = 10.0f;    // 初始不确定度大
-    ekf->Q_data[7 * EKF_STATE_DIM + 7] = 0.01f;    // 随机游走噪声
+    ekf->Q_data[7 * EKF_STATE_DIM + 7] = 0.001f;    // 随机游走噪声
 
     // 观测噪声
     for (int i = 0; i < 3; i++) {
         ekf->R_data[i * EKF_MEAS_DIM + i] = 0.5f;   // ★ 改3→EKF_MEAS_DIM
     }
     // 高度观测噪声
-    ekf->R_data[3 * EKF_MEAS_DIM + 3] = 1.0f;       // 气压高度噪声, 根据实际调
+    ekf->R_data[3 * EKF_MEAS_DIM + 3] = 3.0f;       // 气压高度噪声, 根据实际调
 }
 
 void EKF_Update(EKF_Handle_t *ekf, const float32_t accel[3], const float32_t gyro[3],
