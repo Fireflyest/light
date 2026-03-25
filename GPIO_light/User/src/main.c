@@ -76,17 +76,9 @@ int main() {
     PWM_TIM_Init(PWM_PERIOD, PWM_PRESCALER);
     Init_DMA_For_PWM_TIM3(pwmDutyBuffer);
 
-    PID_Init(&pidRoll, 4.0f, 0.0f, 0.2f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
-    PID_Init(&pidPitch, 4.0f, 0.0f, 0.2f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
-    PID_Init(&pidYaw, 2.0f, 0.0f, 0.1f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
-    PID_Init(&pidHeight, 1.0f, 0.0f, 0.1f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
-    PID_Init(&pidRateRoll, 0.15f, 0.001f, 0.002f, -50.0f, 50.0f, 0.01f, -400.0f, 400.0f, 1.0f);
-    PID_Init(&pidRatePitch, 0.15f, 0.001f, 0.002f, -50.0f, 50.0f, 0.01f, -400.0f, 400.0f, 1.0f);
-    PID_Init(&pidRateYaw, 0.10f, 0.0005f, 0.001f, -50.0f, 50.0f, 0.01f, -400.0f, 400.0f, 1.0f);
+
     RateControl_Init(RATE_LOOP_HZ);
     UI_Logger_AddLine(&logWindow, "Control Init OK");
-
-
 
     for (;;) {
         FPS_StartFrame();

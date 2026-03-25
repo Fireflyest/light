@@ -86,7 +86,7 @@ void PWM_GPIO_Init(void) {
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;     // Alternate Function mode
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
     GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;   // Push-pull
-    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;     // Pull-up resistors
+    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;     // Pull-up resistors
     GPIO_Init(GPIOB, &GPIO_InitStructure);
     /* Connect PB0 and PB1 to TIM3 */
     GPIO_PinAFConfig(GPIOB, GPIO_PinSource0, GPIO_AF_TIM3);
@@ -97,7 +97,7 @@ void PWM_GPIO_Init(void) {
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;     // Alternate Function mode
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
     GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;   // Push-pull
-    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;     // Pull-up resistors
+    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;     // Pull-up resistors
     GPIO_Init(GPIOA, &GPIO_InitStructure);
     /* Connect PA6 and PA7 to TIM3 */
     GPIO_PinAFConfig(GPIOA, GPIO_PinSource6, GPIO_AF_TIM3);

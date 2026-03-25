@@ -35,6 +35,14 @@ void RateControl_Init(uint32_t freq) {
     NVIC_Init(&NVIC_InitStructure);
 
     TIM_Cmd(TIM4, ENABLE);
+
+    PID_Init(&pidRoll, 4.0f, 0.0f, 0.2f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
+    PID_Init(&pidPitch, 4.0f, 0.0f, 0.2f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
+    PID_Init(&pidYaw, 2.0f, 0.0f, 0.1f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
+    PID_Init(&pidHeight, 1.0f, 0.0f, 0.1f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
+    PID_Init(&pidRateRoll, 0.15f, 0.001f, 0.002f, -50.0f, 50.0f, 0.01f, -400.0f, 400.0f, 1.0f);
+    PID_Init(&pidRatePitch, 0.15f, 0.001f, 0.002f, -50.0f, 50.0f, 0.01f, -400.0f, 400.0f, 1.0f);
+    PID_Init(&pidRateYaw, 0.10f, 0.0005f, 0.001f, -50.0f, 50.0f, 0.01f, -400.0f, 400.0f, 1.0f);
 }
 
 // 内环执行（在 TIM4 中断上下文，尽量短小）
@@ -81,6 +89,10 @@ void RateControl_Loop(void) {
     pwmDutyBuffer[1] = PWM_Map_Percent(m[1]);
     pwmDutyBuffer[2] = PWM_Map_Percent(m[2]);
     pwmDutyBuffer[3] = PWM_Map_Percent(m[3]);
+    // TIM_SetCompare1(TIM3, PWM_Map_Percent(m[0]));
+    // TIM_SetCompare2(TIM3, PWM_Map_Percent(m[1]));
+    // TIM_SetCompare3(TIM3, PWM_Map_Percent(m[2]));
+    // TIM_SetCompare4(TIM3, PWM_Map_Percent(m[3]));
 }
 
 void RateControl_TargetAttitude(sm_quat_t q_target, float h_target) {

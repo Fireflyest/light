@@ -32,7 +32,8 @@ void PWM_TIM_Init(uint16_t period, uint16_t prescaler) {
     TIM_Cmd(TIM3, ENABLE);
 }
 
-uint8_t PWM_Map_Percent(uint16_t percent) {
+
+uint16_t PWM_Map_Percent(float percent) {
     percent = fminf(fmaxf((float)percent, 0.0f), 100.0f);
-    return PWM_MIN_REAL + (PWM_MAX_REAL - PWM_MIN_REAL) * percent / 100;
+    return (uint16_t)(percent * (float)PWM_PERIOD / 100.0f);
 }

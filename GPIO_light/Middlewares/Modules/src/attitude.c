@@ -121,6 +121,7 @@ void Attitude_GetAltitude(float *altitude) {
 
 
 void Attitude_Calibrate(void) {
+    accel_calib.is_valid = 0;
     Calibrate_Init(&calib_handle);
     Calibrate_Start(&calib_handle);
 }
