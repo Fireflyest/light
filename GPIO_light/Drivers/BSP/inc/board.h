@@ -9,7 +9,7 @@
 #define GPIO_KEY GPIOA
 #define GPIO_KEY_PIN GPIO_Pin_0
 
-#define SPI_IMU SPI2
+#define SPI_SENSOR SPI2
 #define GPIO_IMU_SPI GPIOB
 #define GPIO_IMU_SPI_CS_PIN GPIO_Pin_12
 #define BMP280
@@ -44,7 +44,7 @@ void Battery_GPIO_Init(void);
  * SPI2: SCK (PB13), MISO (PB14), MOSI (PB15)
  * ICM-20948 CS (PB12), BMP280 CS (PA5)
  */
-void SPI_IMU_GPIO_Init(void);
+void SPI_Sensor_GPIO_Init(void);
 
 /**
  * @brief Initialize the GPIO pins for PWM

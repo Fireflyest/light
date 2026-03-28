@@ -20,8 +20,8 @@ static LowPass_Filter_t altitude_filter;
 
 static EKF_Handle_t imu_ekf;
 
-static Calib_Handle_t calib_handle;
-static Accel_Calib_t accel_calib;
+static Calib_Accel_Handle_t calib_handle;
+static Calib_Accel_t accel_calib;
 
 static const float deg2rad = 0.01745329f;
 static const float g = 9.80665f;
@@ -57,9 +57,9 @@ void Attitude_Update(float dt) {
     mag_current[1] = (int16_t)((mag_rx_buf[3] << 8) | mag_rx_buf[2]) * 0.15f; // 0.15 μT/LSB
     mag_current[2] = (int16_t)((mag_rx_buf[5] << 8) | mag_rx_buf[4]) * 0.15f; // 0.15 μT/LSB
 
-    if (calib_handle.state == CALIB_COLLECTING && diff_angle_filter.output < still_threshold) {
-        Calibrate_AddSample(&calib_handle, accel_current, accel_clib_face);
-        if (calib_handle.state == CALIB_DONE) {
+    if (calib_handle.state == CALIB_ACCEL_COLLECTING && diff_angle_filter.output < still_threshold) {
+        Calib_Accel_AddSample(&calib_handle, accel_current, accel_clib_face);
+        if (calib_handle.state == CALIB_ACCEL_DONE) {
             accel_calib = calib_handle.calib;
             Persistence_WriteCalibData(-1, accel_calib.bias, accel_calib.scale);
         }
@@ -67,7 +67,7 @@ void Attitude_Update(float dt) {
 
     if (accel_calib.is_valid) {
         float calibrated_accel[3];
-        Calibrate_Apply(&accel_calib, accel_current, calibrated_accel);
+        Calib_Accel_Apply(&accel_calib, accel_current, calibrated_accel);
         accel_current[0] = calibrated_accel[0];
         accel_current[1] = calibrated_accel[1];
         accel_current[2] = calibrated_accel[2];
@@ -86,7 +86,7 @@ void Attitude_IsStill(uint8_t *still) {
     LowPass_Update(&diff_angle_filter, diff_angle);
     *still = diff_angle_filter.output < still_threshold;
 
-    if (diff_angle_filter.output > 3 * deg2rad && Calibrate_IsFaceDone(&calib_handle, accel_clib_face)) {
+    if (diff_angle_filter.output > 3 * deg2rad && Calib_Accel_IsFaceDone(&calib_handle, accel_clib_face)) {
         accel_clib_face++;
     }
 
@@ -122,8 +122,8 @@ void Attitude_GetAltitude(float *altitude) {
 
 void Attitude_Calibrate(void) {
     accel_calib.is_valid = 0;
-    Calibrate_Init(&calib_handle);
-    Calibrate_Start(&calib_handle);
+    Calib_Accel_Init(&calib_handle);
+    Calib_Accel_Start(&calib_handle);
 }
 
 void Attitude_CalibratingFace(uint8_t *face) {

@@ -43,7 +43,7 @@ const uint16_t TARGET_FRAME_TIME = 10; // 帧间隔ms
 typedef enum {
     CALIB_WAIT_BUTTON,
     CALIB_STABILIZING,
-    CALIB_COLLECTING,
+    CALIB_ACCEL_COLLECTING,
     CALIB_DONE
 } CalibState;
 
@@ -477,7 +477,7 @@ static void UI_Accel_Calib_Draw(UI_Widget* widget) {
     }
 
     // 每帧采集数据（不变）
-    if (accelCalibStep < 6 && accelCalibState == CALIB_COLLECTING) {
+    if (accelCalibStep < 6 && accelCalibState == CALIB_ACCEL_COLLECTING) {
         int16_t ax = (int16_t)((mpuDataBuffer[0] << 8) | mpuDataBuffer[1]);
         int16_t ay = (int16_t)((mpuDataBuffer[2] << 8) | mpuDataBuffer[3]);
         int16_t az = (int16_t)((mpuDataBuffer[4] << 8) | mpuDataBuffer[5]);
@@ -494,7 +494,7 @@ static void UI_Accel_Calib_Draw(UI_Widget* widget) {
     } else if (accelCalibState == CALIB_STABILIZING) {
         stableCount++;
         if (stableCount >= 300) { // 3s at 100Hz
-            accelCalibState = CALIB_COLLECTING;
+            accelCalibState = CALIB_ACCEL_COLLECTING;
             stableCount = 0;
         }
     }
@@ -508,7 +508,7 @@ static void UI_Gyro_Calib_Draw(UI_Widget* widget) {
         GFX_DrawString(2, 12, "Press key to start", GFX_COLOR_WHITE);
         if (gyroCalibState == CALIB_STABILIZING) {
             GFX_DrawString(2, 22, "Stabilizing...", GFX_COLOR_WHITE);
-        } else if (gyroCalibState == CALIB_COLLECTING) {
+        } else if (gyroCalibState == CALIB_ACCEL_COLLECTING) {
             GFX_DrawString(2, 22, "Collecting...", GFX_COLOR_WHITE);
         }
     } else {
@@ -522,13 +522,13 @@ static void UI_Gyro_Calib_Draw(UI_Widget* widget) {
     if (gyroCalibState == CALIB_STABILIZING) {
         stableCount++;
         if (stableCount >= 300) { // 3s at 100Hz
-            gyroCalibState = CALIB_COLLECTING;
+            gyroCalibState = CALIB_ACCEL_COLLECTING;
             stableCount = 0;
         }
     }
 
     // 采集数据
-    if (gyroCalibState == CALIB_COLLECTING) {
+    if (gyroCalibState == CALIB_ACCEL_COLLECTING) {
         int16_t gx = (int16_t)((mpuDataBuffer[8] << 8) | mpuDataBuffer[9]);
         int16_t gy = (int16_t)((mpuDataBuffer[10] << 8) | mpuDataBuffer[11]);
         int16_t gz = (int16_t)((mpuDataBuffer[12] << 8) | mpuDataBuffer[13]);
@@ -551,7 +551,7 @@ static void UI_Mag_Calib_Draw(UI_Widget* widget) {
         GFX_DrawString(2, 12, "Press key to start", GFX_COLOR_WHITE);
         if (magCalibState == CALIB_STABILIZING) {
             GFX_DrawString(2, 22, "Stabilizing...", GFX_COLOR_WHITE);
-        } else if (magCalibState == CALIB_COLLECTING) {
+        } else if (magCalibState == CALIB_ACCEL_COLLECTING) {
             GFX_DrawString(2, 22, "Collecting...", GFX_COLOR_WHITE);
         }
     } else {
@@ -565,13 +565,13 @@ static void UI_Mag_Calib_Draw(UI_Widget* widget) {
     if (magCalibState == CALIB_STABILIZING) {
         stableCount++;
         if (stableCount >= 300) { // 3s
-            magCalibState = CALIB_COLLECTING;
+            magCalibState = CALIB_ACCEL_COLLECTING;
             stableCount = 0;
         }
     }
 
     // 采集数据
-    if (magCalibState == CALIB_COLLECTING) {
+    if (magCalibState == CALIB_ACCEL_COLLECTING) {
         int16_t mx = (int16_t)((magDataBuffer[0] << 8) | magDataBuffer[1]);
         int16_t my = (int16_t)((magDataBuffer[2] << 8) | magDataBuffer[3]);
         int16_t mz = (int16_t)((magDataBuffer[4] << 8) | magDataBuffer[5]);

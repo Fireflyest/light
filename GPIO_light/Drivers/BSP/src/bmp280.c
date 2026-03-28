@@ -27,11 +27,11 @@ static int t_fine;
 static uint8_t SPI_Transfer_Byte(uint8_t tx) {
     // wait TXE
     uint16_t timeout;
-    for (timeout = 0xFFFF; timeout > 0 && SPI_I2S_GetFlagStatus(SPI_IMU, SPI_I2S_FLAG_TXE) == RESET; timeout--);
-    SPI_I2S_SendData(SPI_IMU, tx);
+    for (timeout = 0xFFFF; timeout > 0 && SPI_I2S_GetFlagStatus(SPI_SENSOR, SPI_I2S_FLAG_TXE) == RESET; timeout--);
+    SPI_I2S_SendData(SPI_SENSOR, tx);
     // wait RXNE
-    for (timeout = 0xFFFF; timeout > 0 && SPI_I2S_GetFlagStatus(SPI_IMU, SPI_I2S_FLAG_RXNE) == RESET; timeout--);
-    return (uint8_t)SPI_I2S_ReceiveData(SPI_IMU);
+    for (timeout = 0xFFFF; timeout > 0 && SPI_I2S_GetFlagStatus(SPI_SENSOR, SPI_I2S_FLAG_RXNE) == RESET; timeout--);
+    return (uint8_t)SPI_I2S_ReceiveData(SPI_SENSOR);
 }
 
 static void BMP280_Register_Write(uint8_t reg, uint8_t data) {

@@ -40,8 +40,7 @@ void Battery_GPIO_Init(void) {
     GPIO_Init(GPIOC, &GPIO_InitStructure);
 }
 
-void SPI_IMU_GPIO_Init(void) {
-    RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI2, ENABLE);
+void SPI_Sensor_GPIO_Init(void) {
     RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
     RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
 

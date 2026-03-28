@@ -5,7 +5,7 @@
 #include "ekf_state7.h"
 #include "lowpass.h"
 #include "spatial_math.h"
-#include "calibrate.h"
+#include "calibrate_accel.h"
 #include "persistence.h"
 
 extern uint8_t imu_rx_buf[14];

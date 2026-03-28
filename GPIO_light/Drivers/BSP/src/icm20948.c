@@ -1,8 +1,5 @@
 #include "icm20948.h"
 
-// uint8_t imu_tx_buf[IMU_DMA_LEN];
-// uint8_t imu_rx_buf[IMU_DMA_LEN];
-// uint8_t mag_rx_buf[8];
 
 static void Delay_ms(uint32_t ms) {
     uint32_t i, j;
@@ -17,34 +14,12 @@ static void CS_High(void) { GPIO_SetBits(GPIO_IMU_SPI, GPIO_IMU_SPI_CS_PIN); }
 /* SPI 单字节传输 */
 static uint8_t SPI_Transfer(uint8_t tx) {
     // uint16_t timeout;
-    // for (timeout = 0xFFFF; timeout > 0 && SPI_I2S_GetFlagStatus(SPI_IMU, SPI_I2S_FLAG_TXE) == RESET; timeout--);
-    while (SPI_I2S_GetFlagStatus(SPI_IMU, SPI_I2S_FLAG_TXE) == RESET);
-    SPI_I2S_SendData(SPI_IMU, tx);
-    // for (timeout = 0xFFFF; timeout > 0 && SPI_I2S_GetFlagStatus(SPI_IMU, SPI_I2S_FLAG_RXNE) == RESET; timeout--);
-    while (SPI_I2S_GetFlagStatus(SPI_IMU, SPI_I2S_FLAG_RXNE) == RESET);
-    return SPI_I2S_ReceiveData(SPI_IMU);
-}
-
-/* SPI 外设初始化 */
-void ICM20948_SPI_Init(void) {
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1, ENABLE);
-
-    SPI_I2S_DeInit(SPI_IMU);
-
-    SPI_InitTypeDef SPI_InitStructure;
-    /* SPI 配置 - Mode 0 (CPOL=0, CPHA=0) */
-    SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
-    SPI_InitStructure.SPI_Mode = SPI_Mode_Master;
-    SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b;
-    SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low;
-    SPI_InitStructure.SPI_CPHA = SPI_CPHA_1Edge;
-    SPI_InitStructure.SPI_NSS = SPI_NSS_Soft;
-    SPI_InitStructure.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_32;
-    SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
-    SPI_InitStructure.SPI_CRCPolynomial = 7;
-
-    SPI_Init(SPI_IMU, &SPI_InitStructure);
-    SPI_Cmd(SPI_IMU, ENABLE);
+    // for (timeout = 0xFFFF; timeout > 0 && SPI_I2S_GetFlagStatus(SPI_SENSOR, SPI_I2S_FLAG_TXE) == RESET; timeout--);
+    while (SPI_I2S_GetFlagStatus(SPI_SENSOR, SPI_I2S_FLAG_TXE) == RESET);
+    SPI_I2S_SendData(SPI_SENSOR, tx);
+    // for (timeout = 0xFFFF; timeout > 0 && SPI_I2S_GetFlagStatus(SPI_SENSOR, SPI_I2S_FLAG_RXNE) == RESET; timeout--);
+    while (SPI_I2S_GetFlagStatus(SPI_SENSOR, SPI_I2S_FLAG_RXNE) == RESET);
+    return SPI_I2S_ReceiveData(SPI_SENSOR);
 }
 
 /* Bank 切换 */
@@ -116,8 +91,6 @@ uint8_t ICM20948_Read_MagWhoAmI(void) {
 
 /* 设备初始化 */
 void ICM20948_Init(void) {
-    ICM20948_SPI_Init();
-
     uint8_t who_am_i;
     uint8_t buffer[10];
 

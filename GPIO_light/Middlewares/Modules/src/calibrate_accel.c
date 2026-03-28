@@ -1,13 +1,13 @@
-#include "calibrate.h"
+#include "calibrate_accel.h"
 #include <math.h>
 #include <string.h>
 
 
 // 初始化校准句柄
-void Calibrate_Init(Calib_Handle_t *handle)
+void Calib_Accel_Init(Calib_Accel_Handle_t *handle)
 {
-    memset(handle, 0, sizeof(Calib_Handle_t));
-    handle->state = CALIB_IDLE;
+    memset(handle, 0, sizeof(Calib_Accel_Handle_t));
+    handle->state = CALIB_ACCEL_IDLE;
     handle->current_face = 0;
     
     for (int face = 0; face < 6; face++) {
@@ -19,14 +19,14 @@ void Calibrate_Init(Calib_Handle_t *handle)
 }
 
 // 开始校准
-void Calibrate_Start(Calib_Handle_t *handle)
+void Calib_Accel_Start(Calib_Accel_Handle_t *handle)
 {
-    handle->state = CALIB_COLLECTING;
+    handle->state = CALIB_ACCEL_COLLECTING;
     handle->current_face = 0;
     handle->sample_count = 0;
     
     for (int face = 0; face < 6; face++) {
-        handle->face_count[face] = 0;
+        handle->face_samples_count[face] = 0;
         handle->face_done[face] = 0;
 
         for (int i = 0; i < 3; i++) {
@@ -37,9 +37,9 @@ void Calibrate_Start(Calib_Handle_t *handle)
 }
 
 // 添加样本
-void Calibrate_AddSample(Calib_Handle_t *handle, const float accel[3], uint8_t face)
+void Calib_Accel_AddSample(Calib_Accel_Handle_t *handle, const float accel[3], uint8_t face)
 {
-    if (handle->state != CALIB_COLLECTING) return;
+    if (handle->state != CALIB_ACCEL_COLLECTING) return;
     if (face >= 6) return;
 
     // 更新当前面的 min/max
@@ -53,7 +53,7 @@ void Calibrate_AddSample(Calib_Handle_t *handle, const float accel[3], uint8_t f
     }
 
     // 存储原始样本（用于最小二乘）
-    if (handle->face_count[face] < CALIB_SAMPLES_PER_FACE) {
+    if (handle->face_samples_count[face] < CALIB_ACCEL_FACE_SAMPLES) {
         handle->samples[handle->sample_count][0] = accel[0];
         handle->samples[handle->sample_count][1] = accel[1];
         handle->samples[handle->sample_count][2] = accel[2];
@@ -61,19 +61,19 @@ void Calibrate_AddSample(Calib_Handle_t *handle, const float accel[3], uint8_t f
     } else {
         handle->face_done[face] = 1;
         if (face >= 5) {
-            Calibrate_Compute(handle);
+            Calib_Accel_Compute(handle);
         }
     }
 
-    handle->face_count[face]++;
+    handle->face_samples_count[face]++;
 }
 
-uint8_t Calibrate_IsFaceDone(Calib_Handle_t *handle, uint8_t face) {
+uint8_t Calib_Accel_IsFaceDone(Calib_Accel_Handle_t *handle, uint8_t face) {
     return handle->face_done[face];
 }
 
 // 最小二乘法计算校准参数（6任意面校准）
-void Calibrate_Compute(Calib_Handle_t *handle)
+void Calib_Accel_Compute(Calib_Accel_Handle_t *handle)
 {
     const int n = handle->sample_count;
 
@@ -239,11 +239,11 @@ void Calibrate_Compute(Calib_Handle_t *handle)
     handle->calib.scale[1]  = scale[1];
     handle->calib.scale[2]  = scale[2];
     handle->calib.is_valid  = 1;
-    handle->state = CALIB_DONE;
+    handle->state = CALIB_ACCEL_DONE;
 }
 
 // 应用校准参数
-void Calibrate_Apply(const Accel_Calib_t *calib, const float raw[3], float calibrated[3])
+void Calib_Accel_Apply(const Calib_Accel_t *calib, const float raw[3], float calibrated[3])
 {
     if (!calib->is_valid) {
         calibrated[0] = raw[0];
