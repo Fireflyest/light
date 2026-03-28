@@ -46,6 +46,7 @@ project:
         - file: ./Drivers/BSP/src/dma.c
         - file: ./Drivers/BSP/src/oled.c
         - file: ./Drivers/BSP/src/persistence.c
+        - file: ./Drivers/BSP/src/spi_sensor.c
         - file: ./Drivers/BSP/src/icm20948.c
         - file: ./Drivers/BSP/src/bmp280.c
     - group: Middlewares Files
@@ -56,7 +57,7 @@ project:
         - file: ./Middlewares/Algorithm/src/ekf_state7.c
         - file: ./Middlewares/Modules/src/battery.c
         - file: ./Middlewares/Modules/src/ble.c
-        - file: ./Middlewares/Modules/src/calibrate.c
+        - file: ./Middlewares/Modules/src/calibrate_accel.c
         - file: ./Middlewares/Modules/src/fps.c
         - file: ./Middlewares/Modules/src/key.c
         - file: ./Middlewares/Modules/src/led.c

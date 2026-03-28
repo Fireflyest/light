@@ -47,6 +47,7 @@
 // #include "mpu.h"
 #include "attitude.h"
 #include "persistence.h"
+#include "spi_sensor.h"
 #include "control.h"
 
 

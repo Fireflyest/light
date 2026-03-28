@@ -45,13 +45,13 @@ int main() {
 
   
 
-    // Load_Bias_Quaternion_From_Flash(&q_bias);
-    SPI_IMU_GPIO_Init();
+    SPI_Sensor_GPIO_Init();
+    SPI_Sensor_Init();
     ICM20948_Init();
     BMP280_Init();
     Delay_ms(50);
     // Init_DMA_For_IMU_SPI2_TIM2(imu_tx_buf, imu_rx_buf);
-    UI_Logger_AddLine(&logWindow, "IMU Init OK");
+    UI_Logger_AddLine(&logWindow, "Sensor Init OK");
     uint8_t who_am_i = ICM20948_Read_WhoAmI();
     uint8_t mag_who_am_i = ICM20948_Read_MagWhoAmI();
     uint8_t bmp_who_am_i = BMP280_Read_WhoAmI();
