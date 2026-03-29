@@ -1,4 +1,8 @@
 #include "spi_sensor.h"
+#include <stddef.h>
+
+static SPI_Sensor_HandleTypeDef spi_sensors[SPI_SENSORS_MAX] = {{0}};
+static uint8_t spi_sensor_count = 0;
 
 void SPI_Sensor_Init(void) {
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_SPI2, ENABLE);
@@ -21,13 +25,24 @@ void SPI_Sensor_Init(void) {
     SPI_Cmd(SPI_SENSOR, ENABLE);
 }
 
-
-void SPI_Sensor_Select(SPI_Sensor_HandleTypeDef *handle) {
-    GPIO_ResetBits(handle->cs_port, handle->cs_pin);  // CS 低电平选中
+uint8_t SPI_Sensor_Register(GPIO_TypeDef *cs_port, uint16_t cs_pin) {
+    if (spi_sensor_count < SPI_SENSORS_MAX) {
+        spi_sensors[spi_sensor_count].cs_port = cs_port;
+        spi_sensors[spi_sensor_count].cs_pin = cs_pin;
+        spi_sensor_count++;
+        return spi_sensor_count;
+    }
+    return 0;
 }
 
-void SPI_Sensor_Deselect(SPI_Sensor_HandleTypeDef *handle) {
-    GPIO_SetBits(handle->cs_port, handle->cs_pin);  // CS 高电平取消选中
+void SPI_Sensor_Select(uint8_t sensor_id) {
+    for (uint8_t i = 0; i < SPI_SENSORS_MAX; i++) {
+        if (i == sensor_id - 1) {
+            GPIO_ResetBits(spi_sensors[i].cs_port, spi_sensors[i].cs_pin);
+        } else {
+            GPIO_SetBits(spi_sensors[i].cs_port, spi_sensors[i].cs_pin);
+        }
+    }
 }
 
 uint8_t SPI_Sensor_TransferByte(uint8_t tx) {
