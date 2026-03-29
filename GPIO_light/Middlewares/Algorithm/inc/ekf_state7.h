@@ -3,10 +3,11 @@
 
 #include "arm_math.h"
 
-// [q0, q1, q2, q3, bias_x, bias_y, bias_z, altitude]
-#define EKF_STATE_DIM 8
-#define EKF_MEAS_DIM  4
+// 状态: [q0,q1,q2,q3, bias_x,bias_y,bias_z, altitude, vel_z]
+#define EKF_STATE_DIM  9
+#define EKF_MEAS_DIM   4
 
+// 状态索引
 #define EKF_IDX_Q0   0
 #define EKF_IDX_Q1   1
 #define EKF_IDX_Q2   2
@@ -15,7 +16,9 @@
 #define EKF_IDX_BY   5
 #define EKF_IDX_BZ   6
 #define EKF_IDX_ALT  7
+#define EKF_IDX_VZ   8
 
+// 观测索引
 #define EKF_OBS_AX   0
 #define EKF_OBS_AY   1
 #define EKF_OBS_AZ   2
@@ -62,10 +65,25 @@ typedef struct {
     arm_matrix_instance_f32 KH;
     float32_t IKH_data[EKF_STATE_DIM * EKF_STATE_DIM];
     arm_matrix_instance_f32 IKH;
+    float32_t Ht_data[EKF_STATE_DIM * EKF_MEAS_DIM];
+    arm_matrix_instance_f32 Ht;
+    float32_t IKHt_data[EKF_STATE_DIM * EKF_STATE_DIM];
+    arm_matrix_instance_f32 IKHt;
+    float32_t KR_data[EKF_STATE_DIM * EKF_MEAS_DIM];
+    arm_matrix_instance_f32 KR;
+    float32_t Kt_data[EKF_MEAS_DIM * EKF_STATE_DIM];
+    arm_matrix_instance_f32 Kt;
+    float32_t KRKt_data[EKF_STATE_DIM * EKF_STATE_DIM];
+    arm_matrix_instance_f32 KRKt;
+    float32_t P_mid_data[EKF_STATE_DIM * EKF_STATE_DIM];
+    arm_matrix_instance_f32 P_mid;
     // 观测向量
     float32_t z[EKF_MEAS_DIM];
     float32_t h[EKF_MEAS_DIM];
     float32_t y[EKF_MEAS_DIM];
+
+    // 高度初始化标志
+    uint8_t alt_initialized;
 } EKF_Handle_t;
 
 // 函数声明
@@ -73,5 +91,6 @@ void EKF_Init(EKF_Handle_t *ekf);
 void EKF_Update(EKF_Handle_t *ekf, const float32_t accel[3], const float32_t gyro[3], const float32_t baro_altitude, float32_t dt);
 void EKF_GetEuler(const EKF_Handle_t *ekf, float32_t *roll, float32_t *pitch, float32_t *yaw);
 float32_t EKF_GetAltitude(const EKF_Handle_t *ekf);
+float32_t EKF_GetVelocityZ(const EKF_Handle_t *ekf);
 
 #endif /* __EKF_STATE7_H */
