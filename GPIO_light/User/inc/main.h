@@ -50,7 +50,12 @@
 #include "spi_sensor.h"
 #include "control.h"
 
-
+/* FreeRTOS includes. */
+#include <FreeRTOS.h>
+#include <task.h>
+#include <queue.h>
+#include <timers.h>
+#include <semphr.h>
 
 #endif /* __MAIN_H */
 
