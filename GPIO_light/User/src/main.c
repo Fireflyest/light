@@ -3,12 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/* FreeRTOS includes. */
-#include <FreeRTOS.h>
-#include <task.h>
-#include <queue.h>
-#include <timers.h>
-#include <semphr.h>
+
 
 
 static float height_init, temperature_init;
@@ -25,63 +20,19 @@ static void exampleTask( void * parameters )
     /* Unused parameters. */
     ( void ) parameters;
 
-    for( ; ; )
-    {
+    for( ; ; ) {
         /* Example Task Code */
-        // vTaskDelay( 100 ); /* delay 100 ticks */
+        vTaskDelay( 100 ); /* delay 100 ticks */
 
-
-
-        FPS_StartFrame();
-        
-        float dt = FPS_GetDeltaTime();
-        Attitude_Update(dt);
-
-        Key_Toggle_Handler();
-        LED_Toggle_Handler();
-
-        ICM20948_Read(imu_rx_buf, mag_rx_buf);
-        BMP280_Read(&altitude_rx, &temperature_rx);
-
-        Battery_Measure_Step();
-
-        if (Key_PressConsume()) {
-            if (Window_Current() == WINDOW_NONE) {
-                Window_To(WINDOW_IMU);
-            } else if (Window_Current() == WINDOW_IMU) {
-                Window_To(WINDOW_CUBE);
-            } else if (Window_Current() == WINDOW_CUBE) {
-                Window_To(WINDOW_BATTERY);
-            } else if (Window_Current() == WINDOW_BATTERY) {
-                Window_To(WINDOW_PID);
-            } else if (Window_Current() == WINDOW_PID) {
-                Window_To(WINDOW_NONE);
-            }
+        // switch led
+        static uint8_t ledState = 0;
+        ledState = !ledState;
+        if (ledState) {
+            GPIO_LED->BSRRL = GPIO_LED_PIN;
+        } else {
+            GPIO_LED->BSRRH = GPIO_LED_PIN;
         }
 
-        sm_quat_t q_target_ctrl = {1.0f, 0.0f, 0.0f, 0.0f};
-        RateControl_TargetAttitude(q_target_ctrl, height_init);
-
-        uint8_t buffer[12] = {0};
-        uint16_t len = 0;
-        if (bleRxStatusUart1 == BLE_RX_STATE_COMPLETE) {
-            len = BLE_ReadData(buffer);
-            BLE_WriteData(buffer, len); // Echo back received data
-        }
-        if (len > 0) {
-            UI_Logger_AddLine(&logWindow, (char*)buffer);
-        }
-
-
-        char pwm_status[64];
-        sprintf(pwm_status, "PWM: %d, %d, %d, %d\r\n", 
-                TIM3->CCR1, TIM3->CCR2, TIM3->CCR3, TIM3->CCR4);
-        BLE_WriteData(pwm_status, strlen(pwm_status));
-
-
-        Window_Render();
-
-        FPS_EndFrame();
     }
 }
 /*-----------------------------------------------------------*/
@@ -162,23 +113,73 @@ int main() {
 
 
 
-    static StaticTask_t exampleTaskTCB;
-    static StackType_t exampleTaskStack[ configMINIMAL_STACK_SIZE ];
+    // static StaticTask_t exampleTaskTCB;
+    // static StackType_t exampleTaskStack[ configMINIMAL_STACK_SIZE ];
+    // TaskHandle_t xExampleTaskHandle = NULL;
+    // ( void ) xTaskCreate( exampleTask,
+    //                     "example",
+    //                     configMINIMAL_STACK_SIZE,
+    //                     NULL,
+    //                     configMAX_PRIORITIES - 1U,
+    //                     &xExampleTaskHandle );
 
-    ( void ) xTaskCreateStatic( exampleTask,
-                                "example",
-                                configMINIMAL_STACK_SIZE,
-                                NULL,
-                                configMAX_PRIORITIES - 1U,
-                                &( exampleTaskStack[ 0 ] ),
-                                &( exampleTaskTCB ) );
 
-
-    /* Start the scheduler. */
-    vTaskStartScheduler();
+    // /* Start the scheduler. */
+    // vTaskStartScheduler();
 
     for (;;) {
         /* Should not reach here. */
+
+        FPS_StartFrame();
+        
+        float dt = FPS_GetDeltaTime();
+        Attitude_Update(dt);
+
+        Key_Toggle_Handler();
+        LED_Toggle_Handler();
+
+        ICM20948_Read(imu_rx_buf, mag_rx_buf);
+        BMP280_Read(&altitude_rx, &temperature_rx);
+
+        Battery_Measure_Step();
+
+        if (Key_PressConsume()) {
+            if (Window_Current() == WINDOW_NONE) {
+                Window_To(WINDOW_IMU);
+            } else if (Window_Current() == WINDOW_IMU) {
+                Window_To(WINDOW_CUBE);
+            } else if (Window_Current() == WINDOW_CUBE) {
+                Window_To(WINDOW_BATTERY);
+            } else if (Window_Current() == WINDOW_BATTERY) {
+                Window_To(WINDOW_PID);
+            } else if (Window_Current() == WINDOW_PID) {
+                Window_To(WINDOW_NONE);
+            }
+        }
+
+        sm_quat_t q_target_ctrl = {1.0f, 0.0f, 0.0f, 0.0f};
+        RateControl_TargetAttitude(q_target_ctrl, height_init);
+
+        uint8_t buffer[12] = {0};
+        uint16_t len = 0;
+        if (bleRxStatusUart1 == BLE_RX_STATE_COMPLETE) {
+            len = BLE_ReadData(buffer);
+            BLE_WriteData(buffer, len); // Echo back received data
+        }
+        if (len > 0) {
+            UI_Logger_AddLine(&logWindow, (char*)buffer);
+        }
+
+
+        char pwm_status[64];
+        sprintf(pwm_status, "PWM: %d, %d, %d, %d\r\n", 
+                TIM3->CCR1, TIM3->CCR2, TIM3->CCR3, TIM3->CCR4);
+        BLE_WriteData(pwm_status, strlen(pwm_status));
+
+
+        Window_Render();
+
+        FPS_EndFrame();
     }
 
 }
