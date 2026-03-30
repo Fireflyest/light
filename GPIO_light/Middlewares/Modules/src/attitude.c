@@ -30,7 +30,7 @@ static const float still_threshold = 0.046f * deg2rad;
 void Attitude_Init(sm_vec3_t accel_bias, sm_vec3_t accel_scale) {
     EKF_Init(&imu_ekf);
     LowPass_Filter_Init(&diff_angle_filter, 0.1f, 0); // 初始化低通滤波器，alpha=0.1，初始输出为0
-    LowPass_Filter_Init(&altitude_filter, 0.1f, 0); // 初始化高度低通滤波器，alpha=0.1，初始输出为0
+    LowPass_Filter_Init(&altitude_filter, 0.03f, 0); // 初始化高度低通滤波器，alpha=0.03，初始输出为0
 
     if (accel_bias[0] != 0 && accel_scale[0] != 1.0f) {
         accel_calib.is_valid = 1;
