@@ -265,14 +265,14 @@ void EKF_Init(EKF_Handle_t *ekf)
     ekf->Q_data[4*EKF_STATE_DIM+4] = 1e-6f;   // bias
     ekf->Q_data[5*EKF_STATE_DIM+5] = 1e-6f;
     ekf->Q_data[6*EKF_STATE_DIM+6] = 1e-6f;
-    ekf->Q_data[7*EKF_STATE_DIM+7] = 0.001f;  // altitude
-    ekf->Q_data[8*EKF_STATE_DIM+8] = 0.1f;    // vel_z
+    ekf->Q_data[7*EKF_STATE_DIM+7] = 0.0001f;  // altitude
+    ekf->Q_data[8*EKF_STATE_DIM+8] = 0.01f;    // vel_z
 
     // 观测噪声 R
     ekf->R_data[0*EKF_MEAS_DIM+0] = 0.5f;     // accel_x
     ekf->R_data[1*EKF_MEAS_DIM+1] = 0.5f;     // accel_y
     ekf->R_data[2*EKF_MEAS_DIM+2] = 0.5f;     // accel_z
-    ekf->R_data[3*EKF_MEAS_DIM+3] = 3.0f;     // baro_altitude
+    ekf->R_data[3*EKF_MEAS_DIM+3] = 5.0f;     // baro_altitude
 
     ekf->alt_initialized = 0;
 }
