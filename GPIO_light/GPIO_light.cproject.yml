@@ -66,6 +66,14 @@ project:
         # - file: ./Middlewares/src/mpu.c
         - file: ./Middlewares/Modules/src/attitude.c
         - file: ./Middlewares/Modules/src/control.c
+        - file: ./Middlewares/ThirdParty/FreeRTOS-Kernel/portable/GCC/ARM_CM4F/port.c
+        - file: ./Middlewares/ThirdParty/FreeRTOS-Kernel/portable/MemMang/heap_4.c
+        - file: ./Middlewares/ThirdParty/FreeRTOS-Kernel/tasks.c
+        - file: ./Middlewares/ThirdParty/FreeRTOS-Kernel/queue.c
+        - file: ./Middlewares/ThirdParty/FreeRTOS-Kernel/list.c
+        - file: ./Middlewares/ThirdParty/FreeRTOS-Kernel/timers.c
+        - file: ./Middlewares/ThirdParty/FreeRTOS-Kernel/event_groups.c
+        - file: ./Middlewares/ThirdParty/FreeRTOS-Kernel/stream_buffer.c
         - file: ./Middlewares/UI/src/bmp.c
         - file: ./Middlewares/UI/src/font.c
         - file: ./Middlewares/UI/src/gfx.c
@@ -74,6 +82,7 @@ project:
     - group: User Files
       files:
         - file: ./User/src/main.c
+        - file: ./User/src/syscalls.c
         # - file: ./User/src/usystem.c
         - file: ./User/src/stm32f4xx_it.c
 
@@ -90,6 +99,8 @@ project:
     - ./Middlewares/UI/inc
     - ./Middlewares/ThirdParty/inc
     - ./Middlewares/display
+    - ./Middlewares/ThirdParty/FreeRTOS-Kernel/include
+    - ./Middlewares/ThirdParty/FreeRTOS-Kernel/portable/GCC/ARM_CM4F/
   
   # List components to use for your application.
   # A software component is a re-usable unit that may be configurable.
