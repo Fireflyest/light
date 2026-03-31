@@ -65,6 +65,7 @@ project:
         - file: ./Middlewares/src/math3d.c
         # - file: ./Middlewares/src/mpu.c
         - file: ./Middlewares/Modules/src/attitude.c
+        - file: ./Middlewares/Modules/src/command.c
         - file: ./Middlewares/Modules/src/control.c
         - file: ./Middlewares/ThirdParty/FreeRTOS-Kernel/portable/GCC/ARM_CM4F/port.c
         - file: ./Middlewares/ThirdParty/FreeRTOS-Kernel/portable/MemMang/heap_4.c

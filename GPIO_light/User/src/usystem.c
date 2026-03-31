@@ -119,7 +119,7 @@ void Init_Control() {
     PID_Init(&pidRateYaw, 0.10f, 0.0005f, 0.001f, -50.0f, 50.0f, 0.01f, -400.0f, 400.0f, 1.0f);
 
     // 启动内环定时器（1kHz）
-    RateControl_Init(RATE_LOOP_HZ);
+    Control_Init(RATE_LOOP_HZ);
 }
 
 void Init_Widgets() {
