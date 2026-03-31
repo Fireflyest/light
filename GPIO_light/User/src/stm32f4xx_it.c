@@ -32,6 +32,11 @@
 
 #include "main.h"
 
+extern void vPortSVCHandler(void);
+extern void xPortPendSVHandler(void);
+extern void xPortSysTickHandler(void);
+
+
 /** @addtogroup Template_Project
   * @{
   */
@@ -115,6 +120,7 @@ void UsageFault_Handler(void)
   */
 void SVC_Handler(void)
 {
+  vPortSVCHandler();
 }
 
 /**
@@ -133,6 +139,7 @@ void DebugMon_Handler(void)
   */
 void PendSV_Handler(void)
 {
+  xPortPendSVHandler();
 }
 
 /**
@@ -142,7 +149,8 @@ void PendSV_Handler(void)
   */
 void SysTick_Handler(void)
 {
-    systemTick++;
+    // systemTick++;
+    xPortSysTickHandler();
 }
 
 /******************************************************************************/
