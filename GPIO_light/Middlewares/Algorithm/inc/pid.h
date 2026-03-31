@@ -23,5 +23,6 @@ void PID_Init(PID_t* pid, float kp, float ki, float kd,
               float aw_gain);
 
 float PID_Update(PID_t* pid, float target, float measured, float dt);
+void PID_Reset(PID_t* pid);
 
 #endif /* __PID_H */

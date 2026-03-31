@@ -49,6 +49,7 @@
 #include "persistence.h"
 #include "spi_sensor.h"
 #include "control.h"
+#include "command.h"
 
 /* FreeRTOS includes. */
 #include <FreeRTOS.h>

@@ -75,3 +75,11 @@ float PID_Update(PID_t* pid, float target, float measured, float dt) {
     pid->last_meas = measured;
     return out;
 }
+
+void PID_Reset(PID_t* pid) {
+    pid->integrator = 0.0f;
+    pid->last_error = 0.0f;
+    pid->last_meas = 0.0f;
+    pid->d_state = 0.0f;
+    pid->start = 0;
+}

@@ -108,10 +108,17 @@ int main() {
     Init_DMA_For_PWM_TIM3(pwmDutyBuffer);
 
 
-    RateControl_Init(RATE_LOOP_HZ);
+    Control_Init(RATE_LOOP_HZ);
     UI_Logger_AddLine(&logWindow, "Control Init OK");
 
-
+    Command_SetModeCallback(Control_SetMode);
+    Command_SetThrottleCallback(Control_SetThrottle);
+    Command_SetHeightCallback(Control_SetHeight);
+    Command_MoveCallback(Control_Move);
+    Command_SetAttitudeCallback(Control_SetAttitude);
+    Command_ArmCallback(Control_Arm);
+    Command_EmergencyStopCallback(Control_EmergencyStop);
+    Command_FlightModeCallback(Control_FlightMode);
 
     // static StaticTask_t exampleTaskTCB;
     // static StackType_t exampleTaskStack[ configMINIMAL_STACK_SIZE ];
@@ -157,19 +164,18 @@ int main() {
             }
         }
 
-        sm_quat_t q_target_ctrl = {1.0f, 0.0f, 0.0f, 0.0f};
-        RateControl_TargetAttitude(q_target_ctrl, height_init);
-
         uint8_t buffer[12] = {0};
         uint16_t len = 0;
         if (bleRxStatusUart1 == BLE_RX_STATE_COMPLETE) {
             len = BLE_ReadData(buffer);
+            Command_ParseAndExecute((char*)buffer, len);
             BLE_WriteData(buffer, len); // Echo back received data
         }
         if (len > 0) {
             UI_Logger_AddLine(&logWindow, (char*)buffer);
         }
 
+        ControlAttitude_Loop();
 
         char pwm_status[64];
         sprintf(pwm_status, "PWM: %d, %d, %d, %d\r\n", 
