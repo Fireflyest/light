@@ -1,61 +1,49 @@
 #include "icm20948.h"
 
 
+static uint8_t sensor_id = 0;
+
 static void Delay_ms(uint32_t ms) {
     uint32_t i, j;
     for (i = 0; i < ms; i++)
         for (j = 0; j < 8000; j++);
 }
 
-/* CS 控制 */
-static void CS_Low(void)  { GPIO_ResetBits(GPIO_IMU_SPI, GPIO_IMU_SPI_CS_PIN); }
-static void CS_High(void) { GPIO_SetBits(GPIO_IMU_SPI, GPIO_IMU_SPI_CS_PIN); }
-
-/* SPI 单字节传输 */
-static uint8_t SPI_Transfer(uint8_t tx) {
-    // uint16_t timeout;
-    // for (timeout = 0xFFFF; timeout > 0 && SPI_I2S_GetFlagStatus(SPI_SENSOR, SPI_I2S_FLAG_TXE) == RESET; timeout--);
-    while (SPI_I2S_GetFlagStatus(SPI_SENSOR, SPI_I2S_FLAG_TXE) == RESET);
-    SPI_I2S_SendData(SPI_SENSOR, tx);
-    // for (timeout = 0xFFFF; timeout > 0 && SPI_I2S_GetFlagStatus(SPI_SENSOR, SPI_I2S_FLAG_RXNE) == RESET; timeout--);
-    while (SPI_I2S_GetFlagStatus(SPI_SENSOR, SPI_I2S_FLAG_RXNE) == RESET);
-    return SPI_I2S_ReceiveData(SPI_SENSOR);
-}
 
 /* Bank 切换 */
 void ICM20948_Set_Bank(uint8_t bank) {
-    CS_Low();
-    SPI_Transfer(ICM20948_REG_BANK_SEL & 0x7F);  /* 写操作，去掉 0x80 */
-    SPI_Transfer((bank << 4) & 0x30);   /* Bank 值在 [5:4] 位 */
-    CS_High();
+    SPI_Sensor_On(sensor_id);
+    (void)SPI_Sensor_TransferByte(ICM20948_REG_BANK_SEL & 0x7F);  /* 写操作，去掉 0x80 */
+    (void)SPI_Sensor_TransferByte((bank << 4) & 0x30);   /* Bank 值在 [5:4] 位 */
+    SPI_Sensor_Off(sensor_id);
 }
 
 /* 读单寄存器 */
 uint8_t ICM20948_Read_Reg(uint8_t reg) {
     uint8_t data;
-    CS_Low();
-    SPI_Transfer(reg | 0x80);
-    data = SPI_Transfer(0x00);
-    CS_High();
+    SPI_Sensor_On(sensor_id);
+    (void)SPI_Sensor_TransferByte(reg | 0x80);
+    data = SPI_Sensor_TransferByte(0x00);
+    SPI_Sensor_Off(sensor_id);
     return data;
 }
 
 /* 写单寄存器 */
 void ICM20948_Write_Reg(uint8_t reg, uint8_t data) {
-    CS_Low();
-    SPI_Transfer(reg & 0x7F);
-    SPI_Transfer(data);
-    CS_High();
+    SPI_Sensor_On(sensor_id);
+    (void)SPI_Sensor_TransferByte(reg & 0x7F);
+    (void)SPI_Sensor_TransferByte(data);
+    SPI_Sensor_Off(sensor_id);
 }
 
 /* 连续读寄存器 */
 void ICM20948_Read_Regs(uint8_t reg, uint8_t *buf, uint16_t len) {
-    CS_Low();
-    SPI_Transfer(reg | 0x80);
+    SPI_Sensor_On(sensor_id);
+    (void)SPI_Sensor_TransferByte(reg | 0x80);
     for (uint16_t i = 0; i < len; i++) {
-        buf[i] = SPI_Transfer(0x00);
+        buf[i] = SPI_Sensor_TransferByte(0x00);
     }
-    CS_High();
+    SPI_Sensor_Off(sensor_id);
 }
 
 /* 单独读取 WHO_AM_I 用于调试 */
@@ -91,6 +79,8 @@ uint8_t ICM20948_Read_MagWhoAmI(void) {
 
 /* 设备初始化 */
 void ICM20948_Init(void) {
+    sensor_id = SPI_Sensor_Register(GPIO_IMU_SPI, GPIO_IMU_SPI_CS_PIN);
+
     uint8_t who_am_i;
     uint8_t buffer[10];
 

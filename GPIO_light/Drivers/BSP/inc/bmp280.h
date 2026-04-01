@@ -3,6 +3,7 @@
 
 #include "stm32f4xx.h"
 #include "board.h"
+#include "spi_sensor.h"
 #include "math.h"
 
 #define BMP_CTRL_MEAS      0xF4

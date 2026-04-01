@@ -30,7 +30,9 @@ void SPI_Sensor_Init(void);
 uint8_t SPI_Sensor_Register(GPIO_TypeDef *cs_port, uint16_t cs_pin);
 
 
-void SPI_Sensor_Select(uint8_t sensor_id);
+void SPI_Sensor_On(uint8_t sensor_id);
+void SPI_Sensor_Off(uint8_t sensor_id);
+
 uint8_t SPI_Sensor_TransferByte(uint8_t tx);
 
 #endif /* __SPI_SENSOR_H */

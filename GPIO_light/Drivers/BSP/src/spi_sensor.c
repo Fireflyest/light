@@ -35,15 +35,19 @@ uint8_t SPI_Sensor_Register(GPIO_TypeDef *cs_port, uint16_t cs_pin) {
     return 0;
 }
 
-void SPI_Sensor_Select(uint8_t sensor_id) {
-    for (uint8_t i = 0; i < SPI_SENSORS_MAX; i++) {
-        if (i == sensor_id - 1) {
-            GPIO_ResetBits(spi_sensors[i].cs_port, spi_sensors[i].cs_pin);
-        } else {
-            GPIO_SetBits(spi_sensors[i].cs_port, spi_sensors[i].cs_pin);
-        }
+
+void SPI_Sensor_On(uint8_t sensor_id) {
+    if (sensor_id > 0 && sensor_id <= spi_sensor_count) {
+        GPIO_ResetBits(spi_sensors[sensor_id - 1].cs_port, spi_sensors[sensor_id - 1].cs_pin);
     }
 }
+
+void SPI_Sensor_Off(uint8_t sensor_id) {
+    if (sensor_id > 0 && sensor_id <= spi_sensor_count) {
+        GPIO_SetBits(spi_sensors[sensor_id - 1].cs_port, spi_sensors[sensor_id - 1].cs_pin);
+    }
+}
+
 
 uint8_t SPI_Sensor_TransferByte(uint8_t tx) {
     uint16_t timeout;
