@@ -1,30 +1,85 @@
 #include "command.h"
-#include <stdlib.h>
 #include <string.h>
 
+/* ══════════════════════════════════════════════════════════════
+ *  回调存储
+ * ══════════════════════════════════════════════════════════════ */
 
-static void (*modeCallback)(uint8_t new_mode) = NULL;
-static void (*throttleCallback)(float throttle) = NULL;
-static void (*heightCallback)(float target_height) = NULL;
-static void (*moveCallback)(float distance_x, float distance_y) = NULL;
-static void (*attitudeCallback)(float roll, float pitch, float yaw) = NULL;
-static void (*armCallback)(void) = NULL;
-static void (*emergencyStopCallback)(void) = NULL;
-static void (*flightModeCallback)(uint8_t mode) = NULL;
+static int8_t  (*cbMode)(uint8_t)                 = NULL;
+static void    (*cbThrottle)(float)               = NULL;
+static void    (*cbHeight)(float)                 = NULL;
+static void    (*cbMove)(float, float)            = NULL;
+static void    (*cbAttitude)(float, float, float) = NULL;
+static int8_t  (*cbArm)(void)                     = NULL;
+static int8_t  (*cbDisarm)(void)                  = NULL;
+static void    (*cbEStop)(void)                   = NULL;
+static int8_t  (*cbTakeoff)(float)                = NULL;
+static int8_t  (*cbLand)(void)                    = NULL;
+static void    (*cbHover)(void)                   = NULL;
 
-void Command_SetModeCallback(void (*cb)(uint8_t))             { modeCallback = cb; }
-void Command_SetThrottleCallback(void (*cb)(float))           { throttleCallback = cb; }
-void Command_SetHeightCallback(void (*cb)(float))             { heightCallback = cb; }
-void Command_MoveCallback(void (*cb)(float, float))           { moveCallback = cb; }
-void Command_SetAttitudeCallback(void (*cb)(float, float, float)) { attitudeCallback = cb; }
-void Command_ArmCallback(void (*cb)(void))                    { armCallback = cb; }
-void Command_EmergencyStopCallback(void (*cb)(void))          { emergencyStopCallback = cb; }
-void Command_FlightModeCallback(void (*cb)(uint8_t))          { flightModeCallback = cb; }
+/* ══════════════════════════════════════════════════════════════
+ *  回调注册
+ * ══════════════════════════════════════════════════════════════ */
 
+void Command_SetModeCallback(int8_t (*cb)(uint8_t))
+{
+    cbMode = cb;
+}
+
+void Command_SetThrottleCallback(void (*cb)(float))
+{
+    cbThrottle = cb;
+}
+
+void Command_SetHeightCallback(void (*cb)(float))
+{
+    cbHeight = cb;
+}
+
+void Command_MoveCallback(void (*cb)(float, float))
+{
+    cbMove = cb;
+}
+
+void Command_SetAttitudeCallback(void (*cb)(float, float, float))
+{
+    cbAttitude = cb;
+}
+
+void Command_SetArmCallback(int8_t (*cb)(void))
+{
+    cbArm = cb;
+}
+
+void Command_SetDisarmCallback(int8_t (*cb)(void))
+{
+    cbDisarm = cb;
+}
+
+void Command_SetEStopCallback(void (*cb)(void))
+{
+    cbEStop = cb;
+}
+
+void Command_SetTakeoffCallback(int8_t (*cb)(float))
+{
+    cbTakeoff = cb;
+}
+
+void Command_SetLandCallback(int8_t (*cb)(void))
+{
+    cbLand = cb;
+}
+
+void Command_SetHoverCallback(void (*cb)(void))
+{
+    cbHover = cb;
+}
 
 /* ══════════════════════════════════════════════════════════════
  *  小端序 float 读取（安全，不依赖对齐）
  * ══════════════════════════════════════════════════════════════ */
+
 static float ReadFloat(const uint8_t* p)
 {
     float f;
@@ -46,11 +101,15 @@ static float ReadFloat(const uint8_t* p)
  *          [yaw: float]                        总长 13
  *    0x15  (无数据)                             总长 1
  *    0x16  (无数据)                             总长 1
- *    0x17  [mode: u8]                          总长 2
+ *    0x17  (无数据)                             总长 1
+ *    0x18  [height: float]                     总长 5
+ *    0x19  (无数据)                             总长 1
+ *    0x1A  (无数据)                             总长 1
  * ══════════════════════════════════════════════════════════════ */
-void Command_ParseAndExecute(const uint8_t* data, uint16_t len)
+
+uint8_t Command_ParseAndExecute(const uint8_t* data, uint16_t len)
 {
-    if (len < 1) return;
+    if (len < 1) return 0xFF;
 
     uint8_t type = data[0];
     const uint8_t* payload = data + 1;
@@ -58,62 +117,88 @@ void Command_ParseAndExecute(const uint8_t* data, uint16_t len)
 
     switch (type) {
 
-    /* ── 控制模式: [mode: u8] ── */
+    /* ── 切换控制层级: [mode: u8] ── */
     case CMD_TYPE_CONTROL_MODE:
-        if (payloadLen >= 1 && modeCallback) {
-            modeCallback(payload[0]);
+        if (payloadLen >= 1 && cbMode) {
+            return (uint8_t)cbMode(payload[0]);
         }
         break;
 
     /* ── 油门: [throttle: float] ── */
     case CMD_TYPE_CONTROL_THROTTLE:
-        if (payloadLen >= 4 && throttleCallback) {
-            throttleCallback(ReadFloat(payload));
+        if (payloadLen >= 4 && cbThrottle) {
+            cbThrottle(ReadFloat(payload));
+            return 0;
         }
         break;
 
-    /* ── 高度: [height: float] ── */
+    /* ── 目标高度: [height: float] ── */
     case CMD_TYPE_CONTROL_HEIGHT:
-        if (payloadLen >= 4 && heightCallback) {
-            heightCallback(ReadFloat(payload));
+        if (payloadLen >= 4 && cbHeight) {
+            cbHeight(ReadFloat(payload));
+            return 0;
         }
         break;
 
-    /* ── 移动: [forward: float] [right: float] ── */
+    /* ── 平移: [forward: float] [right: float] ── */
     case CMD_TYPE_CONTROL_MOVE:
-        if (payloadLen >= 8 && moveCallback) {
-            moveCallback(ReadFloat(payload), ReadFloat(payload + 4));
+        if (payloadLen >= 8 && cbMove) {
+            cbMove(ReadFloat(payload), ReadFloat(payload + 4));
+            return 0;
         }
         break;
 
     /* ── 姿态: [roll: float] [pitch: float] [yaw: float] ── */
     case CMD_TYPE_CONTROL_ATTITUDE:
-        if (payloadLen >= 12 && attitudeCallback) {
-            attitudeCallback(ReadFloat(payload),
-                            ReadFloat(payload + 4),
-                            ReadFloat(payload + 8));
+        if (payloadLen >= 12 && cbAttitude) {
+            cbAttitude(ReadFloat(payload),
+                       ReadFloat(payload + 4),
+                       ReadFloat(payload + 8));
+            return 0;
         }
         break;
 
     /* ── 解锁: 无数据 ── */
     case CMD_TYPE_CONTROL_ARM:
-        if (armCallback) armCallback();
+        if (cbArm) return (uint8_t)cbArm();
         break;
 
-    /* ── 急停: 无数据 ── */
-    case CMD_TYPE_CONTROL_EMERGENCY_STOP:
-        if (emergencyStopCallback) emergencyStopCallback();
+    /* ── 锁定: 无数据 ── */
+    case CMD_TYPE_CONTROL_DISARM:
+        if (cbDisarm) return (uint8_t)cbDisarm();
         break;
 
-    /* ── 飞行模式: [mode: u8] ── */
-    case CMD_TYPE_CONTROL_FLIGHT_MODE:
-        if (payloadLen >= 1 && flightModeCallback) {
-            flightModeCallback(payload[0]);
+    /* ── 紧急停止: 无数据 ── */
+    case CMD_TYPE_CONTROL_ESTOP:
+        if (cbEStop) {
+            cbEStop();
+            return 0;
+        }
+        break;
+
+    /* ── 起飞: [relative_height: float] ── */
+    case CMD_TYPE_CONTROL_TAKEOFF:
+        if (payloadLen >= 4 && cbTakeoff) {
+            return (uint8_t)cbTakeoff(ReadFloat(payload));
+        }
+        break;
+
+    /* ── 降落: 无数据 ── */
+    case CMD_TYPE_CONTROL_LAND:
+        if (cbLand) return (uint8_t)cbLand();
+        break;
+
+    /* ── 悬停: 无数据 ── */
+    case CMD_TYPE_CONTROL_HOVER:
+        if (cbHover) {
+            cbHover();
+            return 0;
         }
         break;
 
     default:
-        /* 未知指令，忽略 */
         break;
     }
+
+    return 0xFF;  /* 未注册回调或参数不足 */
 }

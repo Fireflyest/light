@@ -53,127 +53,131 @@ int main() {
     /* SysTick end of count event each 1ms */
     SystemCoreClockUpdate();                           // 更新  RCC_Clocks 系统时钟变量
     RCC_GetClocksFreq(&RCC_Clocks);                    // 获取  RCC_Clocks  系统时钟
-    // SysTick_Config(RCC_Clocks.HCLK_Frequency / 1000);  // 设置  SysTick  系统时钟中断为1mS
+    SysTick_Config(RCC_Clocks.HCLK_Frequency / 1000);  // 设置  SysTick  系统时钟中断为1mS
 
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
 
-    // Key_GPIO_Init();
+    Key_GPIO_Init();
     LED_GPIO_Init();
-    // Battery_GPIO_Init();
-    // Battery_ADC_Init();
-    // Battery_Measure_Reset();
+    Battery_GPIO_Init();
+    Battery_ADC_Init();
+    Battery_Measure_Reset();
 
-    // LED_Blink(LED_TOGGLE_CMD_BLINK_FAST, 1);
+    LED_Blink(LED_TOGGLE_CMD_BLINK_FAST, 1);
 
-    // OLED_GPIO_Init();
-    // OLED_Init();
-    // GFX_Init();
-    // UI_Logger_Init(&logWindow, 0, 0, 127, 60);
-    // Window_Init();
+    OLED_GPIO_Init();
+    OLED_Init();
+    GFX_Init();
+    UI_Logger_Init(&logWindow, 0, 0, 127, 60);
+    Window_Init();
 
-    // Init_DMA_For_USART1_RX(bleRxBuffer, sizeof(bleRxBuffer));
-    // Init_DMA_For_USART1_TX(bleTxBuffer);
-    // UART1_GPIO_Init();
-    // BLE_Init(BLE_BAUDRATE_115200);
-    // UI_Logger_AddLine(&logWindow, "UART Init OK");
+    Init_DMA_For_USART1_RX(bleRxBuffer, sizeof(bleRxBuffer));
+    Init_DMA_For_USART1_TX(bleTxBuffer);
+    UART1_GPIO_Init();
+    BLE_Init(BLE_BAUDRATE_115200);
+    UI_Logger_AddLine(&logWindow, "UART Init OK");
 
-    // SPI_Sensor_GPIO_Init();
-    // SPI_Sensor_Init();
-    // ICM20948_Init();
-    // BMP280_Init();
-    // Delay_ms(50);
-    // // Init_DMA_For_IMU_SPI2_TIM2(imu_tx_buf, imu_rx_buf);
-    // UI_Logger_AddLine(&logWindow, "Sensor Init OK");
-    // uint8_t who_am_i = ICM20948_Read_WhoAmI();
-    // uint8_t mag_who_am_i = ICM20948_Read_MagWhoAmI();
-    // uint8_t bmp_who_am_i = BMP280_Read_WhoAmI();
-    // char buf[64];
-    // snprintf(buf, sizeof(buf), "ICM20948: 0x%02X", who_am_i);
-    // UI_Logger_AddLine(&logWindow, buf);
-    // snprintf(buf, sizeof(buf), "AK09916: 0x%02X", mag_who_am_i);
-    // UI_Logger_AddLine(&logWindow, buf);
-    // snprintf(buf, sizeof(buf), "BMP280: 0x%02X", bmp_who_am_i);
-    // UI_Logger_AddLine(&logWindow, buf);
-    // BMP280_Read(&height_init, &temperature_init);
+    SPI_Sensor_GPIO_Init();
+    SPI_Sensor_Init();
+    ICM20948_Init();
+    BMP280_Init();
+    Delay_ms(50);
+    // Init_DMA_For_IMU_SPI2_TIM2(imu_tx_buf, imu_rx_buf);
+    UI_Logger_AddLine(&logWindow, "Sensor Init OK");
+    uint8_t who_am_i = ICM20948_Read_WhoAmI();
+    uint8_t mag_who_am_i = ICM20948_Read_MagWhoAmI();
+    uint8_t bmp_who_am_i = BMP280_Read_WhoAmI();
+    char buf[64];
+    snprintf(buf, sizeof(buf), "ICM20948: 0x%02X", who_am_i);
+    UI_Logger_AddLine(&logWindow, buf);
+    snprintf(buf, sizeof(buf), "AK09916: 0x%02X", mag_who_am_i);
+    UI_Logger_AddLine(&logWindow, buf);
+    snprintf(buf, sizeof(buf), "BMP280: 0x%02X", bmp_who_am_i);
+    UI_Logger_AddLine(&logWindow, buf);
+    BMP280_Read(&height_init, &temperature_init);
 
-    // sm_vec3_t accel_bias = {0.0f, 0.0f, 0.0f};
-    // sm_vec3_t accel_scale = {1.0f, 1.0f, 1.0f};
-    // uint8_t read = Persistence_ReadCalibData(-1, accel_bias, accel_scale);
-    // Attitude_Init(accel_bias, accel_scale);
-    // snprintf(buf, sizeof(buf), "Flash: %d", read);
-    // UI_Logger_AddLine(&logWindow, buf);
+    sm_vec3_t accel_bias = {0.0f, 0.0f, 0.0f};
+    sm_vec3_t accel_scale = {1.0f, 1.0f, 1.0f};
+    uint8_t read = Persistence_ReadCalibData(-1, accel_bias, accel_scale);
+    Attitude_Init(accel_bias, accel_scale);
+    snprintf(buf, sizeof(buf), "Flash: %d", read);
+    UI_Logger_AddLine(&logWindow, buf);
 
-    // PWM_GPIO_Init();
-    // PWM_TIM_Init(PWM_PERIOD, PWM_PRESCALER);
-    // Init_DMA_For_PWM_TIM3(pwmDutyBuffer);
-
-
-    // Control_Init(RATE_LOOP_HZ);
-    // UI_Logger_AddLine(&logWindow, "Control Init OK");
-
-    // Command_SetModeCallback(Control_SetMode);
-    // Command_SetThrottleCallback(Control_SetThrottle);
-    // Command_SetHeightCallback(Control_SetHeight);
-    // Command_MoveCallback(Control_Move);
-    // Command_SetAttitudeCallback(Control_SetAttitude);
-    // Command_ArmCallback(Control_Arm);
-    // Command_EmergencyStopCallback(Control_EmergencyStop);
-    // Command_FlightModeCallback(Control_FlightMode);
-
-    TaskHandle_t xExampleTaskHandle = NULL;
-    ( void ) xTaskCreate( exampleTask,
-                        "example",
-                        configMINIMAL_STACK_SIZE,
-                        NULL,
-                        configMAX_PRIORITIES - 1U,
-                        &xExampleTaskHandle );
+    PWM_GPIO_Init();
+    PWM_TIM_Init(PWM_PERIOD, PWM_PRESCALER);
+    Init_DMA_For_PWM_TIM3(pwmDutyBuffer);
 
 
-    /* Start the scheduler. */
-    vTaskStartScheduler();
+    Control_Init(height_init);
+    UI_Logger_AddLine(&logWindow, "Control Init OK");
+
+    Command_SetModeCallback(Control_SetMode);
+    Command_SetThrottleCallback(Control_SetThrottle);
+    Command_SetHeightCallback(Control_SetHeight);
+    Command_MoveCallback(Control_Move);
+    Command_SetAttitudeCallback(Control_SetAttitude);
+    Command_SetArmCallback(Control_Arm);
+    Command_SetDisarmCallback(Control_Disarm);
+    Command_SetEStopCallback(Control_EmergencyStop);
+    Command_SetTakeoffCallback(Control_Takeoff);
+    Command_SetLandCallback(Control_Land);
+    Command_SetHoverCallback(Control_Hover);
+
+
+    // TaskHandle_t xExampleTaskHandle = NULL;
+    // ( void ) xTaskCreate( exampleTask,
+    //                     "example",
+    //                     configMINIMAL_STACK_SIZE,
+    //                     NULL,
+    //                     configMAX_PRIORITIES - 1U,
+    //                     &xExampleTaskHandle );
+
+
+    // /* Start the scheduler. */
+    // vTaskStartScheduler();
 
     for (;;) {
         /* Should not reach here. */
 
-        // FPS_StartFrame();
+        FPS_StartFrame();
         
-        // float dt = FPS_GetDeltaTime();
-        // Attitude_Update(dt);
+        float dt = FPS_GetDeltaTime();
+        Attitude_Update(dt);
 
-        // Key_Toggle_Handler();
-        // LED_Toggle_Handler();
+        Key_Toggle_Handler();
+        LED_Toggle_Handler();
 
-        // ICM20948_Read(imu_rx_buf, mag_rx_buf);
-        // BMP280_Read(&altitude_rx, &temperature_rx);
+        ICM20948_Read(imu_rx_buf, mag_rx_buf);
+        BMP280_Read(&altitude_rx, &temperature_rx);
 
-        // Battery_Measure_Step();
+        Battery_Measure_Step();
 
-        // if (Key_PressConsume()) {
-        //     if (Window_Current() == WINDOW_NONE) {
-        //         Window_To(WINDOW_IMU);
-        //     } else if (Window_Current() == WINDOW_IMU) {
-        //         Window_To(WINDOW_CUBE);
-        //     } else if (Window_Current() == WINDOW_CUBE) {
-        //         Window_To(WINDOW_BATTERY);
-        //     } else if (Window_Current() == WINDOW_BATTERY) {
-        //         Window_To(WINDOW_PID);
-        //     } else if (Window_Current() == WINDOW_PID) {
-        //         Window_To(WINDOW_NONE);
-        //     }
-        // }
+        if (Key_PressConsume()) {
+            if (Window_Current() == WINDOW_NONE) {
+                Window_To(WINDOW_IMU);
+            } else if (Window_Current() == WINDOW_IMU) {
+                Window_To(WINDOW_CUBE);
+            } else if (Window_Current() == WINDOW_CUBE) {
+                Window_To(WINDOW_BATTERY);
+            } else if (Window_Current() == WINDOW_BATTERY) {
+                Window_To(WINDOW_PID);
+            } else if (Window_Current() == WINDOW_PID) {
+                Window_To(WINDOW_NONE);
+            }
+        }
 
-        // uint8_t buffer[12] = {0};
-        // uint16_t len = 0;
-        // if (bleRxStatusUart1 == BLE_RX_STATE_COMPLETE) {
-        //     len = BLE_ReadData(buffer);
-        //     Command_ParseAndExecute((char*)buffer, len);
-        //     BLE_WriteData(buffer, len); // Echo back received data
-        // }
-        // if (len > 0) {
-        //     UI_Logger_AddLine(&logWindow, (char*)buffer);
-        // }
+        uint8_t buffer[12] = {0};
+        uint16_t len = 0;
+        if (bleRxStatusUart1 == BLE_RX_STATE_COMPLETE) {
+            len = BLE_ReadData(buffer);
+            Command_ParseAndExecute((char*)buffer, len);
+            BLE_WriteData(buffer, len); // Echo back received data
+        }
+        if (len > 0) {
+            UI_Logger_AddLine(&logWindow, (char*)buffer);
+        }
 
-        // ControlAttitude_Loop();
+        ControlAttitude_Loop();
 
         // char pwm_status[64];
         // sprintf(pwm_status, "PWM: %d, %d, %d, %d\r\n", 
@@ -181,9 +185,9 @@ int main() {
         // BLE_WriteData(pwm_status, strlen(pwm_status));
 
 
-        // Window_Render();
+        Window_Render();
 
-        // FPS_EndFrame();
+        FPS_EndFrame();
     }
 
 }
