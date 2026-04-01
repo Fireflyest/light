@@ -125,18 +125,21 @@ FlightPhase_t Control_GetFlightPhase(void);
 /** @brief  获取上电时记录的基准高度 (m) */
 float   Control_GetBaseHeight(void);
 
-/* ──────────────────────────────────────────────────────────────
- *  解锁 / 锁定
- * ────────────────────────────────────────────────────────────── */
+/** @brief  设置传感器翻转 */
+void Control_SetSensorFlip(uint8_t flip);
 
-/**
- * @brief  解锁电机
- * @return 0=成功, -1=条件不满足
- *
- * @note   安全条件：必须在 DIRECT 模式 + 油门 = 0
- *         解锁时记录上电基准高度，FlightPhase 设为 GROUNDED
- */
-int8_t  Control_Arm(void);
+    /* ──────────────────────────────────────────────────────────────
+     *  解锁 / 锁定
+     * ────────────────────────────────────────────────────────────── */
+
+    /**
+     * @brief  解锁电机
+     * @return 0=成功, -1=条件不满足
+     *
+     * @note   安全条件：必须在 DIRECT 模式 + 油门 = 0
+     *         解锁时记录上电基准高度，FlightPhase 设为 GROUNDED
+     */
+    int8_t Control_Arm(void);
 
 /**
  * @brief  锁定电机（仅在地面 GROUNDED 状态允许）
