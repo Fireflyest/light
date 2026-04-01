@@ -202,7 +202,7 @@ void ADC_IRQHandler(void)
 void TIM4_IRQHandler(void) {
     if (TIM_GetITStatus(TIM4, TIM_IT_Update) != RESET) {
         TIM_ClearITPendingBit(TIM4, TIM_IT_Update);
-        ControlMotor_Loop();
+        // ControlMotor_Loop();
     }
 }
 

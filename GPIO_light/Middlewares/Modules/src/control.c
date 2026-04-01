@@ -123,7 +123,50 @@ void ControlAttitude_Loop(void)
 }
 
 
+// 内环执行（在 TIM4 中断上下文，尽量短小）
+// 读 gyro -> LPF -> rate PID -> motor mixing -> 写 pwmDutyBuffer
+void ControlMotor_Loop(void) {
+    const float dt = 1.0f / (float)RATE_LOOP_HZ;
+    // 读取陀螺（优先使用 imu_ekf 的速率字段，如果没有，回退到原始 mpuDataBuffer）
+    sm_vec3_t gyro;
+    Attitude_GetGyro(gyro);
+    float gx = gyro[0], gy = gyro[1], gz = gyro[2];
 
+    float rollCtrl  = PID_Update(&pidRateRoll,  rateSetRoll,  gx, dt);
+    float pitchCtrl = PID_Update(&pidRatePitch, rateSetPitch, gy, dt);
+    float yawCtrl   = PID_Update(&pidRateYaw,   rateSetYaw,   gz, dt);
+
+    // motor mixing (百分比单位假设 0..100)，thrustOutput 由主循环设置
+    float throttle = thrustOutput;
+    /* ═══════════════════════════════════════════════════════
+     *  电机混控
+     *
+     *  布局:        X(前)
+     *               ^
+     *          M3   |   M1
+     *     ----------+--------> Y(右)
+     *          M4   |   M2
+     *
+     * 
+     * ═══════════════════════════════════════════════════════ */
+    float m[4];
+    m[0] = throttle + pitchCtrl + rollCtrl + yawCtrl;   /* M1 前右 CW  */
+    m[1] = throttle - pitchCtrl + rollCtrl - yawCtrl;   /* M2 后右 CCW */
+    m[2] = throttle + pitchCtrl - rollCtrl - yawCtrl;   /* M3 前左 CCW */
+    m[3] = throttle - pitchCtrl - rollCtrl + yawCtrl;   /* M4 后左 CW  */
+
+    ClampMotors(m);
+
+    // 写入 PWM 缓冲（短临界区）
+    pwmDutyBuffer[0] = PWM_Map_Percent(m[0]);
+    pwmDutyBuffer[1] = PWM_Map_Percent(m[1]);
+    pwmDutyBuffer[2] = PWM_Map_Percent(m[2]);
+    pwmDutyBuffer[3] = PWM_Map_Percent(m[3]);
+    // TIM_SetCompare1(TIM3, PWM_Map_Percent(m[0]));
+    // TIM_SetCompare2(TIM3, PWM_Map_Percent(m[1]));
+    // TIM_SetCompare3(TIM3, PWM_Map_Percent(m[2]));
+    // TIM_SetCompare4(TIM3, PWM_Map_Percent(m[3]));
+}
 
 void Control_Init(uint32_t freq) {
     // 启动 TIM4 时钟做 1kHz 更新
@@ -152,50 +195,17 @@ void Control_Init(uint32_t freq) {
 
     TIM_Cmd(TIM4, ENABLE);
 
-    PID_Init(&pidRoll, 4.0f, 0.0f, 0.2f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
-    PID_Init(&pidPitch, 4.0f, 0.0f, 0.2f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
-    PID_Init(&pidYaw, 2.0f, 0.0f, 0.1f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
-    PID_Init(&pidHeight, 1.0f, 0.0f, 0.1f, -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
-    PID_Init(&pidRateRoll, 0.15f, 0.001f, 0.002f, -50.0f, 50.0f, 0.01f, -400.0f, 400.0f, 1.0f);
-    PID_Init(&pidRatePitch, 0.15f, 0.001f, 0.002f, -50.0f, 50.0f, 0.01f, -400.0f, 400.0f, 1.0f);
-    PID_Init(&pidRateYaw, 0.10f, 0.0005f, 0.001f, -50.0f, 50.0f, 0.01f, -400.0f, 400.0f, 1.0f);
+    /* 角度环 PID */
+    PID_Init(&pidRoll,   6.0f,  0.0f,   1.0f,   -300.0f, 300.0f, 0.02f, -500.0f, 500.0f, 1.0f);
+    PID_Init(&pidPitch,  6.0f,  0.0f,   1.0f,   -300.0f, 300.0f, 0.02f, -500.0f, 500.0f, 1.0f);
+    PID_Init(&pidYaw,     5.0f,  0.0f,   0.5f,   -200.0f, 200.0f, 0.02f, -500.0f, 500.0f, 1.0f);
+    PID_Init(&pidHeight,  1.0f,  0.0f,   0.1f,   -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
+
+    /* 速率环 PID */
+    PID_Init(&pidRateRoll,  0.5f,   0.01f,  0.005f, -80.0f, 80.0f, 0.01f, -400.0f, 400.0f, 1.0f);
+    PID_Init(&pidRatePitch, 0.5f,   0.01f,  0.005f, -80.0f, 80.0f, 0.01f, -400.0f, 400.0f, 1.0f);
+    PID_Init(&pidRateYaw,   0.3f,   0.005f, 0.003f, -80.0f, 80.0f, 0.01f, -400.0f, 400.0f, 1.0f);
 }
-
-// 内环执行（在 TIM4 中断上下文，尽量短小）
-// 读 gyro -> LPF -> rate PID -> motor mixing -> 写 pwmDutyBuffer
-void ControlMotor_Loop(void) {
-    const float dt = 1.0f / (float)RATE_LOOP_HZ;
-    // 读取陀螺（优先使用 imu_ekf 的速率字段，如果没有，回退到原始 mpuDataBuffer）
-    sm_vec3_t gyro;
-    Attitude_GetGyro(gyro);
-    float gx = gyro[0], gy = gyro[1], gz = gyro[2];
-
-    float rollCtrl  = PID_Update(&pidRateRoll,  rateSetRoll,  gx, dt);
-    float pitchCtrl = PID_Update(&pidRatePitch, rateSetPitch, gy, dt);
-    float yawCtrl   = PID_Update(&pidRateYaw,   rateSetYaw,   gz, dt);
-
-    // motor mixing (百分比单位假设 0..100)，thrustOutput 由主循环设置
-    float throttle = thrustOutput;
-    float m0 = throttle + pitchCtrl + rollCtrl + yawCtrl;
-    float m1 = throttle + pitchCtrl - rollCtrl - yawCtrl;
-    float m2 = throttle - pitchCtrl + rollCtrl - yawCtrl;
-    float m3 = throttle - pitchCtrl - rollCtrl + yawCtrl;
-    float m[4] = { m0, m1, m2, m3 };
-
-    ClampMotors(m);
-
-    // 写入 PWM 缓冲（短临界区）
-    pwmDutyBuffer[0] = PWM_Map_Percent(m[0]);
-    pwmDutyBuffer[1] = PWM_Map_Percent(m[1]);
-    pwmDutyBuffer[2] = PWM_Map_Percent(m[2]);
-    pwmDutyBuffer[3] = PWM_Map_Percent(m[3]);
-    // TIM_SetCompare1(TIM3, PWM_Map_Percent(m[0]));
-    // TIM_SetCompare2(TIM3, PWM_Map_Percent(m[1]));
-    // TIM_SetCompare3(TIM3, PWM_Map_Percent(m[2]));
-    // TIM_SetCompare4(TIM3, PWM_Map_Percent(m[3]));
-}
-
-
 
 /* ──────────────────────────────────────────────────────────────
  * 公开接口实现
