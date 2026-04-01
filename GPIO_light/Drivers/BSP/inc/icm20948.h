@@ -3,6 +3,7 @@
 
 #include "stm32f4xx.h"
 #include "board.h"
+#include "spi_sensor.h"
 
 #define ICM20948_REG_WHO_AM_I            0x00
 #define ICM20948_REG_USER_CTRL           0x03

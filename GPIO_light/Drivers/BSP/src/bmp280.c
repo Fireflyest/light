@@ -24,43 +24,35 @@ static float barometricPressure;
 static float altitude;
 static int t_fine;
 
-static uint8_t SPI_Transfer_Byte(uint8_t tx) {
-    // wait TXE
-    uint16_t timeout;
-    for (timeout = 0xFFFF; timeout > 0 && SPI_I2S_GetFlagStatus(SPI_SENSOR, SPI_I2S_FLAG_TXE) == RESET; timeout--);
-    SPI_I2S_SendData(SPI_SENSOR, tx);
-    // wait RXNE
-    for (timeout = 0xFFFF; timeout > 0 && SPI_I2S_GetFlagStatus(SPI_SENSOR, SPI_I2S_FLAG_RXNE) == RESET; timeout--);
-    return (uint8_t)SPI_I2S_ReceiveData(SPI_SENSOR);
-}
+static uint8_t sensor_id = 0;
 
 static void BMP280_Register_Write(uint8_t reg, uint8_t data) {
     // cs on
-    GPIO_ResetBits(GPIO_BMP_SPI, GPIO_BMP_SPI_CS_PIN);
+    SPI_Sensor_On(sensor_id);
     // send register address (ensure MSB = 0 for write)
-    (void)SPI_Transfer_Byte((uint8_t)(reg & 0x7F));
+    (void)SPI_Sensor_TransferByte((uint8_t)(reg & 0x7F));
     // send data
-    (void)SPI_Transfer_Byte(data);
+    (void)SPI_Sensor_TransferByte(data);
     // cs off
-    GPIO_SetBits(GPIO_BMP_SPI, GPIO_BMP_SPI_CS_PIN);
+    SPI_Sensor_Off(sensor_id);
 }
 
 static void BMP280_Calibration_Read(void) {
     uint8_t b[24];
     
     // cs on
-    GPIO_ResetBits(GPIO_BMP_SPI, GPIO_BMP_SPI_CS_PIN);
+    SPI_Sensor_On(sensor_id);
     
     // send start register address with Read bit (0x88 | 0x80 = 0x88 starting address)
-    (void)SPI_Transfer_Byte(0x88 | 0x80);
+    (void)SPI_Sensor_TransferByte(0x88 | 0x80);
     
     // continuous read 24 bytes
     for (int i = 0; i < 24; ++i) {
-        b[i] = SPI_Transfer_Byte(0xFF);
+        b[i] = SPI_Sensor_TransferByte(0xFF);
     }
     
     // cs off
-    GPIO_SetBits(GPIO_BMP_SPI, GPIO_BMP_SPI_CS_PIN);
+    SPI_Sensor_Off(sensor_id);
 
     bmp_calib.dig_T1 = (uint16_t)(b[1] << 8 | b[0]);
     bmp_calib.dig_T2 = (int16_t)(b[3] << 8 | b[2]);
@@ -113,16 +105,18 @@ static void BMP280_GetAltitude() {
 uint8_t BMP280_Register_Read(uint8_t reg) {
     uint8_t v;
     // cs on
-    GPIO_ResetBits(GPIO_BMP_SPI, GPIO_BMP_SPI_CS_PIN);
+    SPI_Sensor_On(sensor_id);
     for (volatile int i = 0; i < 200; ++i); // short settle delay
-    (void)SPI_Transfer_Byte((uint8_t)(reg | 0x80)); // read flag
-    v = SPI_Transfer_Byte(0xFF);
+    (void)SPI_Sensor_TransferByte((uint8_t)(reg | 0x80)); // read flag
+    v = SPI_Sensor_TransferByte(0xFF);
     // cs off
-    GPIO_SetBits(GPIO_BMP_SPI, GPIO_BMP_SPI_CS_PIN);
+    SPI_Sensor_Off(sensor_id);
     return v;
 }
 
 void BMP280_Init(void) {
+    sensor_id = SPI_Sensor_Register(GPIO_BMP_SPI, GPIO_BMP_SPI_CS_PIN);
+
     BMP280_Register_Write(BMP_CONFIG, 0xA0);    // standby 1000ms, filter off
     BMP280_Register_Write(BMP_CTRL_MEAS, 0x27); // normal mode, temp and pressure oversampling x1
     BMP280_Calibration_Read();
@@ -134,14 +128,14 @@ uint8_t BMP280_Read_WhoAmI(void) {
 
 void BMP280_Read(float* alt, float *tmp) {
     // cs on
-    GPIO_ResetBits(GPIO_BMP_SPI, GPIO_BMP_SPI_CS_PIN);
+    SPI_Sensor_On(sensor_id);
     // send register address with Read bit (typically MSB=1 for BMP SPI read)
-    (void)SPI_Transfer_Byte((uint8_t)(0xF7 | 0x80)); // Example register for BMP data
+    (void)SPI_Sensor_TransferByte((uint8_t)(0xF7 | 0x80)); // Example register for BMP data
     for (int i = 0; i < 6; ++i) { // assuming 6 bytes of data
-        bmp_rx_buf[i] = SPI_Transfer_Byte(0xFF);
+        bmp_rx_buf[i] = SPI_Sensor_TransferByte(0xFF);
     }
     // cs off
-    GPIO_SetBits(GPIO_BMP_SPI, GPIO_BMP_SPI_CS_PIN);
+    SPI_Sensor_Off(sensor_id);
 
     int32_t adc_P = ((int32_t)bmp_rx_buf[0] << 12)
                    | ((int32_t)bmp_rx_buf[1] << 4)
