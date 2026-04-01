@@ -86,15 +86,11 @@ void ControlAttitude_Loop(void)
     const float dt = 1.0f / 200.0f;          /* 外环周期 5 ms */
 
     /* ── 读取当前姿态 ─────────────────────────────── */
-    sm_vec3_t att;
-    float curRoll  = att[0];
-    float curPitch = att[1];
-    float curYaw   = att[2];
+    float curRoll, curPitch, curYaw;
     Attitude_GetEuler(&curRoll, &curPitch, &curYaw);                    /* att[0]=roll, att[1]=pitch, att[2]=yaw */
 
-    float curHeight = 0.0f;
-    /* 若有气压计 / ToF 高度源，在此读取：
-     * curHeight = Barometer_GetAltitude();   */
+    float curHeight;
+    Attitude_GetAltitude(&curHeight);
 
     /* ── 高度环 ──────────────────────────────────── */
     if (currentFlightMode == FLIGHT_MODE_TAKEOFF ||
