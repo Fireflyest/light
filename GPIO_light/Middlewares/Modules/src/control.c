@@ -20,6 +20,7 @@ __IO float thrustOutput;
 static ControlMode_t  curMode   = CONTROL_MODE_DIRECT;
 static FlightPhase_t  curPhase  = FLIGHT_PHASE_GROUNDED;
 static uint8_t        isArmed   = 0;
+static int8_t rollPitchSign = 1; /* 1=Z-down, -1=Z-up */
 
 static float baseHeight    = 0.0f;   /* 上电基准高度 (m) */
 static float targetRoll    = 0.0f;   /* 目标横滚角  (°)  */
@@ -146,9 +147,16 @@ void ControlAttitude_Loop(void)
         effRoll  += moveRight   * 25.0f;      /* 右移 = 正横滚            */
     }
 
-    /* 角度 PID → 角速率设定点 */
-    rateSetRoll  = PID_Update(&pidRoll,  effRoll,  curRoll,  dt);
-    rateSetPitch = PID_Update(&pidPitch, effPitch, curPitch, dt);
+    /* 角度 PID → 角速率设定点
+     *
+     * Z-down: rollPitchSign = +1
+     *   右倾 → curRoll > 0 → PID 输出负 → rateSetRoll 负 → 速率环修正 ✓
+     *
+     * Z-up:   rollPitchSign = -1
+     *   右倾 → curRoll < 0 → PID 输出正 → 取反后负 → 速率环修正 ✓
+     */
+    rateSetRoll = (float)rollPitchSign * PID_Update(&pidRoll, effRoll, curRoll, dt);
+    rateSetPitch = (float)rollPitchSign * PID_Update(&pidPitch, effPitch, curPitch, dt);
 
     /* 偏航：短角误差归一化 */
     float yawErr = NormalizeAngle(targetYaw - curYaw);
@@ -166,6 +174,9 @@ void ControlMotor_Loop(void)
     sm_vec3_t gyro;
     Attitude_GetGyro(gyro);
     float gx = gyro[0], gy = gyro[1], gz = gyro[2];
+    if (rollPitchSign < 0) {
+        gy = -gy;
+    }
 
     float rollCtrl  = PID_Update(&pidRateRoll,  rateSetRoll,  gx, dt);
     float pitchCtrl = PID_Update(&pidRatePitch, rateSetPitch, gy, dt);
@@ -280,6 +291,14 @@ FlightPhase_t Control_GetFlightPhase(void)
 float Control_GetBaseHeight(void)
 {
     return baseHeight;
+}
+
+/* ══════════════════════════════════════════════════════════════
+ *  传感器朝向
+ * ══════════════════════════════════════════════════════════════ */
+
+void Control_SetSensorFlip(uint8_t flip) {
+    rollPitchSign = flip ? -1 : 1;
 }
 
 /* ══════════════════════════════════════════════════════════════
