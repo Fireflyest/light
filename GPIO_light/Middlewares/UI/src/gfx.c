@@ -155,6 +155,12 @@ void GFX3D_DrawLine(Point3D* p1, Point3D* p2, GFX_Color color) {
     GFX_DrawLine((int)p1->x, (int)p1->y, (int)p2->x, (int)p2->y, color);
 }
 
+void GFX3D_DrawLineStyled(Point3D* p1, Point3D* p2, GFX_Color color, GFX_Line_Style style) {
+    Math3D_Project(p1, FOCAL_LENGTH_DEFAULT, CAMERA_Z_DEFAULT);
+    Math3D_Project(p2, FOCAL_LENGTH_DEFAULT, CAMERA_Z_DEFAULT);
+    GFX_DrawLineStyled((int)p1->x, (int)p1->y, (int)p2->x, (int)p2->y, color, style);
+}
+
 void GFX3D_DrawRect(Point3D* p, Vector3D* v, GFX_Color color) {
      Point3D p0 = *p;
     Point3D p1 = { p->x + v->x, p->y,           p->z           };

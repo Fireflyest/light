@@ -6,7 +6,7 @@
 
 
 
-static float height_init, temperature_init;
+static float init_altitude, init_temperature;
 
 
 /*-----------------------------------------------------------*/
@@ -94,12 +94,12 @@ int main() {
     UI_Logger_AddLine(&logWindow, buf);
     snprintf(buf, sizeof(buf), "BMP280: 0x%02X", bmp_who_am_i);
     UI_Logger_AddLine(&logWindow, buf);
-    BMP280_Read(&height_init, &temperature_init);
+    BMP280_Read(&init_altitude, &init_temperature);
 
     sm_vec3_t accel_bias = {0.0f, 0.0f, 0.0f};
     sm_vec3_t accel_scale = {1.0f, 1.0f, 1.0f};
-    uint8_t read = Persistence_ReadCalibData(-1, accel_bias, accel_scale);
-    Attitude_Init(accel_bias, accel_scale);
+    uint8_t read = Persistence_ReadCalibData(PERSISTENCE_DATA_MARKER, accel_bias, accel_scale);
+    Attitude_Init(accel_bias, accel_scale, init_altitude);
     snprintf(buf, sizeof(buf), "Flash: %d", read);
     UI_Logger_AddLine(&logWindow, buf);
 
@@ -108,7 +108,8 @@ int main() {
     Init_DMA_For_PWM_TIM3(pwmDutyBuffer);
 
 
-    Control_Init(height_init);
+    Control_Init();
+    Control_SetSensorFlip(1);
     UI_Logger_AddLine(&logWindow, "Control Init OK");
 
     Command_SetModeCallback(Control_SetMode);
@@ -123,6 +124,7 @@ int main() {
     Command_SetLandCallback(Control_Land);
     Command_SetHoverCallback(Control_Hover);
 
+    Window_To(WINDOW_CUBE);
 
     // TaskHandle_t xExampleTaskHandle = NULL;
     // ( void ) xTaskCreate( exampleTask,
@@ -170,14 +172,16 @@ int main() {
         uint16_t len = 0;
         if (bleRxStatusUart1 == BLE_RX_STATE_COMPLETE) {
             len = BLE_ReadData(buffer);
-            Command_ParseAndExecute((char*)buffer, len);
-            BLE_WriteData(buffer, len); // Echo back received data
+            uint8_t result = Command_ParseAndExecute((char*)buffer, len);
+            BLE_WriteData(&result, 1);
+            // BLE_WriteData(buffer, len); // Echo back received data
         }
         if (len > 0) {
             UI_Logger_AddLine(&logWindow, (char*)buffer);
         }
 
         ControlAttitude_Loop();
+        ControlMotor_Loop();
 
         // char pwm_status[64];
         // sprintf(pwm_status, "PWM: %d, %d, %d, %d\r\n", 

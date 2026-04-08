@@ -85,19 +85,22 @@ static void ResetAllTargets(void)
  *  外环（姿态 + 高度）— 由主循环以 200 Hz 调用
  * ────────────────────────────────────────────────────────────── */
 
-void ControlAttitude_Loop(void)
-{
+void ControlAttitude_Loop(void) {
     if (!isArmed) {
         thrustOutput = 0.0f;
-        rateSetRoll  = 0.0f;
+        rateSetRoll = 0.0f;
         rateSetPitch = 0.0f;
-        rateSetYaw   = 0.0f;
+        rateSetYaw = 0.0f;
         return;
     }
 
     const float dt = 1.0f / (float)ATTITUDE_LOOP_HZ;
 
-    /* ── 读取当前姿态 ─────────────────────────────── */
+    /* ── 读取当前姿态（四元数）────────────────────── */
+    sm_quat_t q;
+    Attitude_GetQuat(q);
+
+    /* 仍然读取欧拉角，用于降落/起飞状态机 */
     float curRoll, curPitch, curYaw;
     Attitude_GetEuler(&curRoll, &curPitch, &curYaw);
 
@@ -106,17 +109,14 @@ void ControlAttitude_Loop(void)
 
     /* ── 降落状态机 ───────────────────────────────── */
     if (curPhase == FLIGHT_PHASE_LANDING) {
-        /* 目标高度已由 Control_Land() 渐降，这里只做接地检测 */
         if (curHeight < baseHeight + 0.05f) {
-            /* 接地：自动锁定 */
             Control_Disarm();
-            return;  /* Disarm 后 isArmed=0，下帧直接走零输出 */
+            return;
         }
     }
 
     /* ── 起飞状态机 ───────────────────────────────── */
     if (curPhase == FLIGHT_PHASE_TAKING_OFF) {
-        /* 高度达到目标 ±10cm 视为起飞完成 */
         if (fabsf(curHeight - targetHeight) < 0.10f) {
             curPhase = FLIGHT_PHASE_IN_FLIGHT;
         }
@@ -124,43 +124,87 @@ void ControlAttitude_Loop(void)
 
     /* ── 高度环 ──────────────────────────────────── */
     if (curMode >= CONTROL_MODE_ALTITUDE) {
-        thrustOutput = baseThrottle
-                     + PID_Update(&pidHeight, targetHeight, curHeight, dt);
+        thrustOutput = baseThrottle + PID_Update(&pidHeight, targetHeight, curHeight, dt);
         thrustOutput = fmaxf(0.0f, fminf(thrustOutput, 100.0f));
     }
-    /* DIRECT / STABILIZED: thrustOutput 由 Control_SetThrottle() 直接写入 */
 
     /* ── 姿态环 ──────────────────────────────────── */
 
-    /* DIRECT 模式：角度环输出被忽略，内环直接接收摇杆速率 */
+    /* DIRECT 模式：角度环输出被忽略 */
     if (curMode == CONTROL_MODE_DIRECT) {
-        /* 角度环仍在跑（保持积分连续），但不赋给 rateSet */
         return;
     }
 
-    float effRoll  = targetRoll;
+    float effRoll = targetRoll;
     float effPitch = targetPitch;
 
-    /* ALTITUDE 及以上：平移指令叠加到目标姿态 */
     if (curMode >= CONTROL_MODE_ALTITUDE) {
-        effPitch -= moveForward * 25.0f;      /* 前进 = 负俯仰, 最大 ±25° */
-        effRoll  += moveRight   * 25.0f;      /* 右移 = 正横滚            */
+        effPitch -= moveForward * 25.0f;
+        effRoll += moveRight * 25.0f;
     }
 
-    /* 角度 PID → 角速率设定点
+    /* ═══════════════════════════════════════════════════
+     *  四元数误差计算
      *
-     * Z-down: rollPitchSign = +1
-     *   右倾 → curRoll > 0 → PID 输出负 → rateSetRoll 负 → 速率环修正 ✓
+     *  q_err = q_target * conj(q_current)
      *
-     * Z-up:   rollPitchSign = -1
-     *   右倾 → curRoll < 0 → PID 输出正 → 取反后负 → 速率环修正 ✓
-     */
-    rateSetRoll = (float)rollPitchSign * PID_Update(&pidRoll, effRoll, curRoll, dt);
-    rateSetPitch = (float)rollPitchSign * PID_Update(&pidPitch, effPitch, curPitch, dt);
+     *  目标姿态 = 目标偏航旋转 × 当前姿态（保持 roll/pitch 惯性轴）
+     *  q_target = q_yaw_delta × q_current
+     *
+     *  其中 q_yaw_delta = [cos(Δψ/2), 0, 0, sin(Δψ/2)]
+     *
+     *  误差四元数矢量部分 ≈ 旋转轴 × sin(θ/2)
+     *  直接用于 PID 输入，无 ±180° 跳变
+     * ═══════════════════════════════════════════════════ */
 
-    /* 偏航：短角误差归一化 */
-    float yawErr = NormalizeAngle(targetYaw - curYaw);
-    rateSetYaw   = PID_Update(&pidYaw, 0.0f, -yawErr, dt);
+    /* 目标偏航角（度） */
+    float targetYawAngle = targetYaw;
+    if (curMode >= CONTROL_MODE_ALTITUDE) {
+        targetYawAngle = targetYaw; /* yaw 目标由 Control_SetAttitude 设定 */
+    }
+
+    /* yaw 误差（度），归一化到 (-180, 180] */
+    float yawErrDeg = NormalizeAngle(targetYawAngle - curYaw);
+    float halfYaw = yawErrDeg * 0.5f * (float)(3.1415926 / 180.0);
+
+    /* 目标四元数 = yaw旋转 × 当前姿态 */
+    float cosH = cosf(halfYaw);
+    float sinH = sinf(halfYaw);
+
+    float tw = cosH * q[0] - sinH * q[3];
+    float tx = cosH * q[1] - sinH * q[2];
+    float ty = cosH * q[2] + sinH * q[1];
+    float tz = cosH * q[3] + sinH * q[0];
+
+    /* 误差四元数 = q_target × conj(q_current) */
+    float ew = tw * q[0] + tx * q[1] + ty * q[2] + tz * q[3];
+    float ex = -tw * q[1] + tx * q[0] - ty * q[3] + tz * q[2];
+    float ey = -tw * q[2] + tx * q[3] + ty * q[0] - tz * q[1];
+    float ez = -tw * q[3] - tx * q[2] + ty * q[1] + tz * q[0];
+
+    /* 最短路径：当 ew < 0 时误差 > 180°，取反 */
+    float sign = (ew >= 0.0f) ? -1.0f : 1.0f;
+
+    /* 符号取反：使误差方向与 Euler PID 一致
+     * 无人机右倾 → q_err.x > 0 → 取反后负 → PID 输出负 → 修正右倾 */
+    float errRoll = sign * ex;  /* roll  误差 */
+    float errPitch = sign * ey; /* pitch 误差 */
+    float errYaw = sign * ez;   /* yaw   误差 */
+
+    /* 将四元数向量部分正确转换为欧拉角角度误差（度）
+     * 依据：ex = sin(θ/2) * nx。在小角度下 θ ≈ 2 * ex (弧度)
+     * 1 弧度 ≈ 57.2958 度。因此系数为 2 * 57.2958 = 114.5916f */
+    float toDeg = 114.5916f;
+    float errRollDeg = errRoll * toDeg;
+    float errPitchDeg = errPitch * toDeg;
+    float errYawDeg = errYaw * toDeg;
+
+    /* 用误差四元数做 PID 输入（target = 0, measured = 误差值） */
+    rateSetRoll = PID_Update(&pidRoll, 0.0f, errRollDeg, dt);
+    rateSetPitch = PID_Update(&pidPitch, 0.0f, errPitchDeg, dt);
+    // rateSetYaw = PID_Update(&pidYaw, 0.0f, errYawDeg, dt);
+
+    rateSetYaw = 0; // TODO 调试消除yaw影响
 }
 
 /* ──────────────────────────────────────────────────────────────
@@ -173,10 +217,9 @@ void ControlMotor_Loop(void)
 
     sm_vec3_t gyro;
     Attitude_GetGyro(gyro);
-    float gx = gyro[0], gy = gyro[1], gz = gyro[2];
-    if (rollPitchSign < 0) {
-        gy = -gy;
-    }
+    float gx = (float)rollPitchSign * gyro[0];
+    float gy = (float)rollPitchSign * gyro[1];
+    float gz = (float)rollPitchSign * gyro[2];
 
     float rollCtrl  = PID_Update(&pidRateRoll,  rateSetRoll,  gx, dt);
     float pitchCtrl = PID_Update(&pidRatePitch, rateSetPitch, gy, dt);
@@ -187,17 +230,20 @@ void ControlMotor_Loop(void)
     /* ═══════════════════════════════════════════════════════
      *  电机混控
      *
-     *  布局:        X(前)
-     *               ^
-     *          M3   |   M1
-     *     ----------+--------> Y(右)
-     *          M4   |   M2
+     *  布局:         X(前)
+     *                 ^
+     *          M3逆   |   M1顺
+     *       ----------+--------> Y(右)
+     *          M4顺   |   M2逆
+     * 
+     * 升力与Z同向
+     * 角速度与加速度轴相反，右手定则
      * ═══════════════════════════════════════════════════════ */
     float m[4];
-    m[0] = throttle + pitchCtrl + rollCtrl + yawCtrl;   /* M1 前右 CW  */
-    m[1] = throttle - pitchCtrl + rollCtrl - yawCtrl;   /* M2 后右 CCW */
-    m[2] = throttle + pitchCtrl - rollCtrl - yawCtrl;   /* M3 前左 CCW */
-    m[3] = throttle - pitchCtrl - rollCtrl + yawCtrl;   /* M4 后左 CW  */
+    m[0] = throttle - pitchCtrl - rollCtrl + yawCtrl; /* M1 CW  */
+    m[1] = throttle + pitchCtrl - rollCtrl - yawCtrl; /* M2 CCW */
+    m[2] = throttle - pitchCtrl + rollCtrl - yawCtrl; /* M3 CCW */
+    m[3] = throttle + pitchCtrl + rollCtrl + yawCtrl; /* M4 CW  */
 
     ClampMotors(m);
 
@@ -211,7 +257,7 @@ void ControlMotor_Loop(void)
  *  初始化
  * ────────────────────────────────────────────────────────────── */
 
-void Control_Init(float height_init)
+void Control_Init()
 {
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);
 
@@ -239,17 +285,15 @@ void Control_Init(float height_init)
     TIM_Cmd(TIM4, ENABLE);
 
     /* 角度环 PID */
-    PID_Init(&pidRoll,    6.0f, 0.0f,    1.0f,   -300.0f, 300.0f, 0.02f, -500.0f, 500.0f, 1.0f);
-    PID_Init(&pidPitch,   6.0f, 0.0f,    1.0f,   -300.0f, 300.0f, 0.02f, -500.0f, 500.0f, 1.0f);
-    PID_Init(&pidYaw,     5.0f, 0.0f,    0.5f,   -200.0f, 200.0f, 0.02f, -500.0f, 500.0f, 1.0f);
-    PID_Init(&pidHeight,  1.0f, 0.0f,    0.1f,   -100.0f, 100.0f, 0.02f, -500.0f, 500.0f, 1.0f);
+    PID_Init(&pidHeight, 1.0f, 0.01f, 0.1f, -50.0f, 50.0f, 0.02f, -150.0f, 150.0f, 1.0f);
+    PID_Init(&pidRoll, 5.0f, 1.0f, 0.0f, -150.0f, 150.0f, 0.02f, -150.0f, 150.0f, 1.0f);
+    PID_Init(&pidPitch, 5.0f, 1.0f, 0.0f, -150.0f, 150.0f, 0.02f, -150.0f, 150.0f, 1.0f);
+    PID_Init(&pidYaw, 3.0f, 0.5f, 0.0f, -130.0f, 130.0f, 0.02f, -130.0f, 130.0f, 1.0f);
 
-    /* 速率环 PID */
-    PID_Init(&pidRateRoll,  0.5f, 0.01f,  0.005f, -80.0f, 80.0f, 0.01f, -400.0f, 400.0f, 1.0f);
-    PID_Init(&pidRatePitch, 0.5f, 0.01f,  0.005f, -80.0f, 80.0f, 0.01f, -400.0f, 400.0f, 1.0f);
-    PID_Init(&pidRateYaw,   0.3f, 0.005f, 0.003f, -80.0f, 80.0f, 0.01f, -400.0f, 400.0f, 1.0f);
-
-    baseHeight = height_init;
+    /* 速率环 */
+    PID_Init(&pidRateRoll, 1.2f, 1.5f, 0.005f, -130.0f, 130.0f, 0.01f, -125.0f, 125.0f, 1.0f);
+    PID_Init(&pidRatePitch, 1.2f, 1.5f, 0.005f, -130.0f, 130.0f, 0.01f, -125.0f, 125.0f, 1.0f);
+    PID_Init(&pidRateYaw, 0.5f, 0.01f, 0.002f, -120.0f, 120.0f, 0.01f, -120.0f, 120.0f, 1.0f);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -275,7 +319,7 @@ int8_t Control_SetMode(ControlMode_t mode)
     moveRight   = 0.0f;
     ResetAllPIDs();
 
-    return 0;
+    return mode;
 }
 
 ControlMode_t Control_GetMode(void)
@@ -325,7 +369,7 @@ int8_t Control_Arm(void)
 
     curPhase = FLIGHT_PHASE_GROUNDED;
 
-    return 0;
+    return curPhase;
 }
 
 int8_t Control_Disarm(void)
@@ -385,7 +429,7 @@ int8_t Control_Takeoff(float relative_height)
 
     curPhase = FLIGHT_PHASE_TAKING_OFF;
 
-    return 0;
+    return curPhase;
 }
 
 int8_t Control_Land(void)
@@ -404,7 +448,7 @@ int8_t Control_Land(void)
     curPhase = FLIGHT_PHASE_LANDING;
     /* 接地检测在 ControlAttitude_Loop() 中自动完成 */
 
-    return 0;
+    return curPhase;
 }
 
 void Control_Hover(void)

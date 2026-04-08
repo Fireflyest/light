@@ -42,6 +42,7 @@ void GFX_DrawBitmap(int x, int y, const uint8_t* bitmap, int w, int h, GFX_Color
 // 3d
 void GFX3D_DrawPixel(Point3D* p, GFX_Color color);
 void GFX3D_DrawLine(Point3D* p1, Point3D* p2, GFX_Color color);
+void GFX3D_DrawLineStyled(Point3D* p1, Point3D* p2, GFX_Color color, GFX_Line_Style style);
 void GFX3D_DrawRect(Point3D* p, Vector3D* v, GFX_Color color);
 void GFX3D_FillRect(Point3D* p, Vector3D* v, GFX_Color color);
 void GFX3D_DrawCube(Point3D* center, Vector3D* v, Quaternion* q, GFX_Color color);

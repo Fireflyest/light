@@ -12,7 +12,7 @@ static sm_vec3_t gyro_current = {0};
 static sm_vec3_t accel_current = {0};
 static sm_vec3_t mag_current = {0};
 
-static uint8_t accel_clib_face = 0;
+static uint8_t accel_clib_face = 6;
 
 static sm_quat_t last_quat;
 static LowPass_Filter_t diff_angle_filter;
@@ -25,12 +25,12 @@ static Calib_Accel_t accel_calib;
 
 static const float deg2rad = 0.01745329f;
 static const float g = 9.80665f;
-static const float still_threshold = 0.046f * deg2rad;
+static const float still_threshold = 0.08f * deg2rad;
 
-void Attitude_Init(sm_vec3_t accel_bias, sm_vec3_t accel_scale) {
+void Attitude_Init(sm_vec3_t accel_bias, sm_vec3_t accel_scale, float init_altitude) {
     EKF_Init(&imu_ekf);
     LowPass_Filter_Init(&diff_angle_filter, 0.1f, 0); // 初始化低通滤波器，alpha=0.1，初始输出为0
-    LowPass_Filter_Init(&altitude_filter, 0.03f, 0); // 初始化高度低通滤波器，alpha=0.03，初始输出为0
+    LowPass_Filter_Init(&altitude_filter, 0.03f, init_altitude);  // 初始化高度低通滤波器，alpha=0.03，初始输出为0
 
     if (accel_bias[0] != 0 && accel_scale[0] != 1.0f) {
         accel_calib.is_valid = 1;
@@ -61,7 +61,7 @@ void Attitude_Update(float dt) {
         Calib_Accel_AddSample(&calib_handle, accel_current, accel_clib_face);
         if (calib_handle.state == CALIB_ACCEL_DONE) {
             accel_calib = calib_handle.calib;
-            Persistence_WriteCalibData(-1, accel_calib.bias, accel_calib.scale);
+            Persistence_WriteCalibData(PERSISTENCE_DATA_MARKER, accel_calib.bias, accel_calib.scale);
         }
     }
 
@@ -75,7 +75,11 @@ void Attitude_Update(float dt) {
 
     LowPass_Update(&altitude_filter, altitude_rx);
     
+    #ifdef ATTITUDE_EKF_BARO
     EKF_Update(&imu_ekf, accel_current, gyro_current, altitude_filter.output, dt);
+    #else
+    EKF_Update(&imu_ekf, accel_current, gyro_current, dt);
+    #endif /* ATTITUDE_EKF_BARO */
 }
 
 void Attitude_IsStill(uint8_t *still) {
@@ -115,12 +119,23 @@ void Attitude_GetAccel(sm_vec3_t accel) {
 // void Attitude_GetMag(sm_vec3_t mag);
 
 void Attitude_GetAltitude(float *altitude) {
+    #ifdef ATTITUDE_EKF_BARO
     *altitude = EKF_GetAltitude(&imu_ekf);
+    #else
+    *altitude = altitude_filter.output;
+    #endif /* ATTITUDE_EKF_BARO */
 }
 
-
+void Attitude_GetVelocityZ(float* velocityZ) {
+    #ifdef ATTITUDE_EKF_BARO
+    *velocityZ = EKF_GetVelocityZ(&imu_ekf);
+    #else
+    *velocityZ = 0.0f;
+    #endif /* ATTITUDE_EKF_BARO */
+}
 
 void Attitude_Calibrate(void) {
+    accel_clib_face = 0;
     accel_calib.is_valid = 0;
     Calib_Accel_Init(&calib_handle);
     Calib_Accel_Start(&calib_handle);
