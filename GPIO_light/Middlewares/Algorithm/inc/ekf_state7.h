@@ -5,7 +5,7 @@
 
 // 状态: [q0,q1,q2,q3, bias_x,bias_y,bias_z, altitude, vel_z]
 #define EKF_STATE_DIM  9
-#define EKF_MEAS_DIM   4
+#define EKF_MEAS_DIM   5
 
 // 状态索引
 #define EKF_IDX_Q0   0
@@ -82,8 +82,9 @@ typedef struct {
     float32_t h[EKF_MEAS_DIM];
     float32_t y[EKF_MEAS_DIM];
 
-    // 高度初始化标志
+    // 初始化标志
     uint8_t alt_initialized;
+    uint8_t quat_initialized;
 } EKF_Handle_t;
 
 // 函数声明

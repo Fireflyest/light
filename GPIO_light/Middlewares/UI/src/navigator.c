@@ -87,63 +87,50 @@ void UI_IMU_Draw(UI_Widget* widget) {
     int y = widget->y + 2;
     int lh = 10; // 行高，根据字体调整
 
-    int16_t ax = (int16_t)((imu_rx_buf[0] << 8) | imu_rx_buf[1]);
-    int16_t ay = (int16_t)((imu_rx_buf[2] << 8) | imu_rx_buf[3]);
-    int16_t az = (int16_t)((imu_rx_buf[4] << 8) | imu_rx_buf[5]);
-
-    // ICM-20948 顺序: 加速度(0-5), 陀螺仪(6-11), 温度(12-13)
-    int16_t gx = (int16_t)((imu_rx_buf[6] << 8) | imu_rx_buf[7]);
-    int16_t gy = (int16_t)((imu_rx_buf[8] << 8) | imu_rx_buf[9]);
-    int16_t gz = (int16_t)((imu_rx_buf[10] << 8) | imu_rx_buf[11]);
-
-    int16_t mx = (int16_t)((mag_rx_buf[0] << 8) | mag_rx_buf[1]);
-    int16_t my = (int16_t)((mag_rx_buf[2] << 8) | mag_rx_buf[3]);
-    int16_t mz = (int16_t)((mag_rx_buf[4] << 8) | mag_rx_buf[5]);
+    sm_vec3_t accel, gyro, mag;
+    Attitude_GetAccel(accel);
+    Attitude_GetGyro(gyro);
+    // Attitude_GetMag(mag);
 
     int16_t tempRaw = (int16_t)((imu_rx_buf[12] << 8) | imu_rx_buf[13]);
     float tempC = (float)tempRaw / 333.87f + 21.0f;
 
-
-    snprintf(line, sizeof(line), "AX %6d GX %6d", (int)ax, (int)gx);
+    snprintf(line, sizeof(line), "AX %6d GX %6d", (int)(accel[0] * 10), (int)(gyro[0] * 10));
     GFX_DrawString(x, y + 0 * lh, line, GFX_COLOR_WHITE);
 
-    snprintf(line, sizeof(line), "AY %6d GY %6d", (int)ay, (int)gy);
+    snprintf(line, sizeof(line), "AY %6d GY %6d", (int)(accel[1] * 10), (int)(gyro[1] * 10));
     GFX_DrawString(x, y + 1 * lh, line, GFX_COLOR_WHITE);
 
-    snprintf(line, sizeof(line), "AZ %6d GZ %6d", (int)az, (int)gz);
+    snprintf(line, sizeof(line), "AZ %6d GZ %6d", (int)(accel[2] * 10), (int)(gyro[2] * 10));
     GFX_DrawString(x, y + 2 * lh, line, GFX_COLOR_WHITE);
     
-    snprintf(line, sizeof(line), "MX %6d MY %6d", (int)mx, (int)my);
-    GFX_DrawString(x, y + 3 * lh, line, GFX_COLOR_WHITE);
-
-    {
-        float at = tempC < 0.0f ? -tempC : tempC;
-        int ti = (int)at;                       // integer part
-        int tf = (int)(at * 10.0f) % 10;         // one decimal
-        if (tempC < 0.0f) {
-            snprintf(line, sizeof(line), "MZ %6d  T -%d.%dC", (int)mz, ti, tf);
-        } else {
-            snprintf(line, sizeof(line), "MZ %6d  T %d.%dC", (int)mz, ti, tf);
-        }
-    }
-    GFX_DrawString(x, y + 4 * lh, line, GFX_COLOR_WHITE);
-
+    // snprintf(line, sizeof(line), "MX %6d MY %6d", (int)mag[0], (int)mag[1]);
+    // GFX_DrawString(x, y + 3 * lh, line, GFX_COLOR_WHITE);
 
     // {
-    //     float at = temperature < 0.0f ? -temperature : temperature;
-    //     int t_i = (int)at;
-    //     int t_d = (int)(at * 10.0f) % 10;
-
-    //     float ab = barometricPressure < 0.0f ? -barometricPressure : barometricPressure;
-    //     int b_i = (int)ab;
-    //     int b_d = (int)(ab * 10.0f) % 10;
-
-    //     float aa = altitude < 0.0f ? -altitude : altitude;
-    //     int a_i = (int)aa;
-    //     int a_d = (int)(aa * 10.0f) % 10;
-    //     snprintf(line, sizeof(line), "%3d.%1d %3d.%1d %3d.%1dm", t_i, t_d, b_i, b_d, a_i, a_d);
+    //     float at = tempC < 0.0f ? -tempC : tempC;
+    //     int ti = (int)at;                       // integer part
+    //     int tf = (int)(at * 10.0f) % 10;         // one decimal
+    //     if (tempC < 0.0f) {
+    //         snprintf(line, sizeof(line), "MZ %6d  T -%d.%dC", (int)mz, ti, tf);
+    //     } else {
+    //         snprintf(line, sizeof(line), "MZ %6d  T %d.%dC", (int)mz, ti, tf);
+    //     }
     // }
-    // GFX_DrawString(x, y + 5 * lh, line, GFX_COLOR_WHITE);
+    // GFX_DrawString(x, y + 4 * lh, line, GFX_COLOR_WHITE);
+
+
+    {
+        float at = temperature_rx < 0.0f ? -temperature_rx : temperature_rx;
+        int t_i = (int)at;
+        int t_d = (int)(at * 10.0f) % 10;
+
+        float aa = altitude_rx < 0.0f ? -altitude_rx : altitude_rx;
+        int a_i = (int)aa;
+        int a_d = (int)(aa * 10.0f) % 10;
+        snprintf(line, sizeof(line), "%3d.%1d %3d.%1dm", t_i, t_d, a_i, a_d);
+    }
+    GFX_DrawString(x, y + 5 * lh, line, GFX_COLOR_WHITE);
     GFX_DrawString(x, y + 6 * lh, " ", GFX_COLOR_WHITE);
 }
 
@@ -155,16 +142,16 @@ void UI_Cube_Draw(UI_Widget* widget) {
     sm_quat_t current_quat;
     Attitude_GetQuat(current_quat);
     q.w = current_quat[0];
-    q.x = -current_quat[1]; // 取负号即为共轭 (Inverse rotation)
+    q.x = current_quat[1];
     q.y = -current_quat[2];
     q.z = -current_quat[3];
 
     GFX3D_DrawCube(&center, &halfExtent, &q, GFX_COLOR_WHITE);
 
     float axisLen = 10.0f; // 轴的长度（应大于立方体半长 20.0f）
-    Vector3D vX = { axisLen, 0.0f, 0.0f };
-    Vector3D vY = { 0.0f, axisLen, 0.0f };
-    Vector3D vZ = { 0.0f, 0.0f, axisLen * 2 };
+    Vector3D vX = {-axisLen, 0.0f, 0.0f};
+    Vector3D vY = {0.0f, axisLen, 0.0f};
+    Vector3D vZ = { 0.0f, 0.0f, axisLen * 2 }; // *2 让Z轴更明显
 
     // 使用四元数旋转轴向量
     Math3D_QuatRotateVector(&vX, &q);
@@ -177,7 +164,7 @@ void UI_Cube_Draw(UI_Widget* widget) {
     // X轴
     pStart = center;
     pEnd.x = center.x + vX.x; pEnd.y = center.y + vX.y; pEnd.z = center.z + vX.z;
-    GFX3D_DrawLine(&pStart, &pEnd, GFX_COLOR_WHITE);
+    GFX3D_DrawLineStyled(&pStart, &pEnd, GFX_COLOR_WHITE, GFX_LINE_STYLE_THICK_DOT);
 
     // Y轴
     pStart = center;
@@ -196,12 +183,16 @@ void UI_Cube_Draw(UI_Widget* widget) {
 
     uint8_t still;
     uint8_t accel_clib_face;
+    float velocityZ;
     Attitude_IsStill(&still);
     Attitude_CalibratingFace(&accel_clib_face);
+    Attitude_GetVelocityZ(&velocityZ);
     snprintf(line, sizeof(line), "S: %d", still);
     GFX_DrawString(0, 10, line, GFX_COLOR_WHITE);
     snprintf(line, sizeof(line), "F: %d", accel_clib_face);
     GFX_DrawString(0, 20, line, GFX_COLOR_WHITE);
+    snprintf(line, sizeof(line), "V: %d.%d", (int)velocityZ, (int)(fabsf(velocityZ) * 10.0f) % 10);
+    GFX_DrawString(0, 40, line, GFX_COLOR_WHITE);
     {
         float alt;
         Attitude_GetAltitude(&alt);

@@ -99,7 +99,7 @@ typedef enum {
  *  基础控制
  * ────────────────────────────────────────────────────────────── */
 
-void    Control_Init(float height_init);     /* 初始化 PID 参数等，freq=控制循环频率 */
+void    Control_Init(void);     /* 初始化 PID 参数等，freq=控制循环频率 */
 void    ControlAttitude_Loop(void);                         /* 外环：角度 + 高度 (200 Hz) */
 void    ControlMotor_Loop(void);                            /* 内环：速率    (1000 Hz)    */
 

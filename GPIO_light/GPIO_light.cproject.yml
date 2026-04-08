@@ -55,6 +55,7 @@ project:
         - file: ./Middlewares/Algorithm/src/pid.c
         - file: ./Middlewares/Algorithm/src/spatial_math.c
         - file: ./Middlewares/Algorithm/src/ekf_state7.c
+        # - file: ./Middlewares/Algorithm/src/ekf_state6.c
         - file: ./Middlewares/Modules/src/battery.c
         - file: ./Middlewares/Modules/src/ble.c
         - file: ./Middlewares/Modules/src/calibrate_accel.c

@@ -55,8 +55,8 @@ static void State_Transition(EKF_Handle_t *ekf, const float32_t gyro[3],
 
     // 世界坐标系垂直加速度
     float32_t q0 = x[0], q1 = x[1], q2 = x[2], q3 = x[3];
-    float32_t R20 = 2.0f * (q0*q2 + q1*q3);
-    float32_t R21 = 2.0f * (q2*q3 - q0*q1);
+    float32_t R20 = 2.0f * (q1 * q3 - q0 * q2);
+    float32_t R21 = 2.0f * (q0 * q1 + q2 * q3);
     float32_t R22 = q0*q0 - q1*q1 - q2*q2 + q3*q3;
 
     float32_t az_world = R20 * accel[0] + R21 * accel[1] + R22 * accel[2] - GRAVITY;
@@ -120,10 +120,10 @@ static void Compute_JacobianF(EKF_Handle_t *ekf, const float32_t gyro[3],
     F[7*EKF_STATE_DIM+8] = dt;
 
     // ∂vz/∂q (用旧四元数)
-    F[8*EKF_STATE_DIM+0] = dt * ( 2.0f*q2*ax - 2.0f*q1*ay + 2.0f*q0*az);
-    F[8*EKF_STATE_DIM+1] = dt * ( 2.0f*q3*ax - 2.0f*q0*ay - 2.0f*q1*az);
-    F[8*EKF_STATE_DIM+2] = dt * ( 2.0f*q0*ax + 2.0f*q3*ay - 2.0f*q2*az);
-    F[8*EKF_STATE_DIM+3] = dt * ( 2.0f*q1*ax + 2.0f*q2*ay + 2.0f*q3*az);
+    F[8 * EKF_STATE_DIM + 0] = dt * (-2.0f * q2 * ax + 2.0f * q1 * ay + 2.0f * q0 * az);
+    F[8 * EKF_STATE_DIM + 1] = dt * (2.0f * q3 * ax + 2.0f * q0 * ay - 2.0f * q1 * az);
+    F[8 * EKF_STATE_DIM + 2] = dt * (-2.0f * q0 * ax + 2.0f * q3 * ay - 2.0f * q2 * az);
+    F[8 * EKF_STATE_DIM + 3] = dt * (2.0f * q1 * ax + 2.0f * q2 * ay + 2.0f * q3 * az);
 }
 
 // ==================================
@@ -151,6 +151,7 @@ static void Compute_JacobianH(EKF_Handle_t *ekf)
     H[2*EKF_STATE_DIM+3] =  2.0f*q3;
 
     H[3*EKF_STATE_DIM+7] = 1.0f;
+    H[4 * EKF_STATE_DIM + 8] = 1.0f;
 }
 
 // ==================================
@@ -163,6 +164,7 @@ static void Observation_Model(const float32_t x[EKF_STATE_DIM], float32_t h[EKF_
     h[1] = 2.0f * (q0*q1 + q2*q3);
     h[2] = q0*q0 - q1*q1 - q2*q2 + q3*q3;
     h[3] = x[EKF_IDX_ALT];
+    h[4] = x[EKF_IDX_VZ];
 }
 
 // ==================================
@@ -214,9 +216,61 @@ static arm_status Matrix_Inverse4x4(arm_matrix_instance_f32 *src, arm_matrix_ins
 }
 
 // ==================================
+// 5×5 矩阵求逆
+// ==================================
+static arm_status Matrix_Inverse5x5(arm_matrix_instance_f32* src, arm_matrix_instance_f32* dst) {
+    float32_t* m = src->pData;
+    int n = 5;
+    float32_t aug[5][10];
+
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            aug[i][j] = m[i * n + j];
+            aug[i][j + n] = (i == j) ? 1.0f : 0.0f;
+        }
+    }
+
+    for (int col = 0; col < n; col++) {
+        int best = col;
+        for (int row = col + 1; row < n; row++)
+            if (fabsf(aug[row][col]) > fabsf(aug[best][col]))
+                best = row;
+        if (best != col)
+            for (int j = 0; j < 2 * n; j++) {
+                float32_t t = aug[col][j];
+                aug[col][j] = aug[best][j];
+                aug[best][j] = t;
+            }
+
+        float32_t pivot = aug[col][col];
+        if (fabsf(pivot) < 1e-12f)
+            return ARM_MATH_SINGULAR;
+
+        float32_t inv_pivot = 1.0f / pivot;
+        for (int j = 0; j < 2 * n; j++)
+            aug[col][j] *= inv_pivot;
+
+        for (int row = 0; row < n; row++) {
+            if (row == col)
+                continue;
+            float32_t f = aug[row][col];
+            for (int j = 0; j < 2 * n; j++)
+                aug[row][j] -= f * aug[col][j];
+        }
+    }
+
+    float32_t* out = dst->pData;
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < n; j++)
+            out[i * n + j] = aug[i][j + n];
+
+    return ARM_MATH_SUCCESS;
+}
+
+// ==================================
 // 初始化
 // ==================================
-void EKF_Init(EKF_Handle_t *ekf)
+void EKF_Init(EKF_Handle_t* ekf)
 {
     memset(ekf, 0, sizeof(EKF_Handle_t));
 
@@ -272,11 +326,12 @@ void EKF_Init(EKF_Handle_t *ekf)
     ekf->R_data[0*EKF_MEAS_DIM+0] = 0.5f;     // accel_x
     ekf->R_data[1*EKF_MEAS_DIM+1] = 0.5f;     // accel_y
     ekf->R_data[2*EKF_MEAS_DIM+2] = 0.5f;     // accel_z
-    ekf->R_data[3*EKF_MEAS_DIM+3] = 5.0f;     // baro_altitude
+    ekf->R_data[3*EKF_MEAS_DIM+3] = 30.0f;     // baro_altitude
+    ekf->R_data[4 * EKF_MEAS_DIM + 4] = 0.01f;     // vertical_velocity
 
     ekf->alt_initialized = 0;
+    ekf->quat_initialized = 0;
 }
-
 
 // ==================================
 // EKF 更新
@@ -289,6 +344,34 @@ void EKF_Update(EKF_Handle_t *ekf, const float32_t accel[3], const float32_t gyr
     if (!ekf->alt_initialized) {
         ekf->x[EKF_IDX_ALT] = baro_altitude;
         ekf->alt_initialized = 1;
+    }
+
+    if (!ekf->quat_initialized) {
+        float32_t ax = accel[0], ay = accel[1], az = accel[2];
+        float32_t acc_norm;
+        arm_sqrt_f32(ax * ax + ay * ay + az * az, &acc_norm);
+        if (acc_norm > 1e-6f) {
+            float32_t inv = 1.0f / acc_norm;
+            ax *= inv;
+            ay *= inv;
+            az *= inv;
+
+            // 从加速度计估算 roll 和 pitch
+            float32_t roll = atan2f(ay, az);
+            float32_t pitch = asinf(-ax);
+
+            // 转换为四元数 (yaw = 0)
+            float32_t cr = cosf(roll * 0.5f);
+            float32_t sr = sinf(roll * 0.5f);
+            float32_t cp = cosf(pitch * 0.5f);
+            float32_t sp = sinf(pitch * 0.5f);
+
+            ekf->x[0] = cr * cp;  // w
+            ekf->x[1] = sr * cp;  // x
+            ekf->x[2] = cr * sp;  // y
+            ekf->x[3] = sr * sp;  // z
+        }
+        ekf->quat_initialized = 1;
     }
 
     // ===== 保存旧四元数 (用于 Jacobian) =====
@@ -321,13 +404,25 @@ void EKF_Update(EKF_Handle_t *ekf, const float32_t accel[3], const float32_t gyr
     arm_sub_f32(ekf->z, ekf->h, ekf->y, EKF_MEAS_DIM);
     Compute_JacobianH(ekf);
 
+    /* ═══════════════════════════════════════════════════════
+     *  阻断气压计对姿态的影响
+     *  清零 P 中姿态/偏置 与 高度/速度 的交叉协方差
+     * ═══════════════════════════════════════════════════════ */
+    for (int i = 0; i < 7; i++) {
+        ekf->P_data[i * EKF_STATE_DIM + 7] = 0.0f;
+        ekf->P_data[i * EKF_STATE_DIM + 8] = 0.0f;
+        ekf->P_data[7 * EKF_STATE_DIM + i] = 0.0f;
+        ekf->P_data[8 * EKF_STATE_DIM + i] = 0.0f;
+    }
+
     status = arm_mat_mult_f32(&ekf->H, &ekf->P, &ekf->HP);
     status = arm_mat_trans_f32(&ekf->H, &ekf->Ht);
     status = arm_mat_mult_f32(&ekf->HP, &ekf->Ht, &ekf->S);
     status = arm_mat_add_f32(&ekf->S, &ekf->R, &ekf->S);
 
-    status = Matrix_Inverse4x4(&ekf->S, &ekf->S_inv);
-    if (status != ARM_MATH_SUCCESS) return;
+    status = Matrix_Inverse5x5(&ekf->S, &ekf->S_inv);
+    if (status != ARM_MATH_SUCCESS)
+        return;
 
     status = arm_mat_mult_f32(&ekf->P, &ekf->Ht, &ekf->PHt);
     status = arm_mat_mult_f32(&ekf->PHt, &ekf->S_inv, &ekf->K);
