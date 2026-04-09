@@ -157,54 +157,39 @@ void ControlAttitude_Loop(void) {
      *  直接用于 PID 输入，无 ±180° 跳变
      * ═══════════════════════════════════════════════════ */
 
-    /* 目标偏航角（度） */
-    float targetYawAngle = targetYaw;
-    if (curMode >= CONTROL_MODE_ALTITUDE) {
-        targetYawAngle = targetYaw; /* yaw 目标由 Control_SetAttitude 设定 */
-    }
+    /* 从当前四元数提取 yaw */
+    float curYawAngle = atan2f(2.0f * (q[0] * q[3] + q[1] * q[2]),
+                               1.0f - 2.0f * (q[2] * q[2] + q[3] * q[3]));
 
-    /* yaw 误差（度），归一化到 (-180, 180] */
-    float yawErrDeg = NormalizeAngle(targetYawAngle - curYaw);
-    float halfYaw = yawErrDeg * 0.5f * (float)(3.1415926 / 180.0);
+    /* yaw 误差（度） */
+    float yawErrDeg = NormalizeAngle(targetYaw - curYawAngle * 180.0f / 3.14159265f);
 
-    /* 目标四元数 = yaw旋转 × 当前姿态 */
-    float cosH = cosf(halfYaw);
-    float sinH = sinf(halfYaw);
+    /* 目标 yaw = 当前 yaw + yaw 误差 */
+    float targetYawRad = curYawAngle + yawErrDeg * 3.14159265f / 180.0f;
+    float halfTargetYaw = targetYawRad * 0.5f;
 
-    float tw = cosH * q[0] - sinH * q[3];
-    float tx = cosH * q[1] - sinH * q[2];
-    float ty = cosH * q[2] + sinH * q[1];
-    float tz = cosH * q[3] + sinH * q[0];
+    /* 目标四元数 = [水平, yaw] */
+    float tw = cosf(halfTargetYaw);
+    float tx = 0.0f;
+    float ty = 0.0f;
+    float tz = sinf(halfTargetYaw);
 
-    /* 误差四元数 = q_target × conj(q_current) */
-    float ew = tw * q[0] + tx * q[1] + ty * q[2] + tz * q[3];
-    float ex = -tw * q[1] + tx * q[0] - ty * q[3] + tz * q[2];
-    float ey = -tw * q[2] + tx * q[3] + ty * q[0] - tz * q[1];
-    float ez = -tw * q[3] - tx * q[2] + ty * q[1] + tz * q[0];
+    /* conj(q_current) × q_target */
+    float ew = q[0] * tw + q[1] * tx + q[2] * ty + q[3] * tz;
+    float ex = -q[1] * tw + q[0] * tx + q[3] * ty - q[2] * tz;
+    float ey = -q[2] * tw + q[3] * tx + q[0] * ty + q[1] * tz;
+    float ez = -q[3] * tw + q[2] * tx + q[1] * ty + q[0] * tz;
 
-    /* 最短路径：当 ew < 0 时误差 > 180°，取反 */
+    /* 最短路径 + 符号修正 */
     float sign = (ew >= 0.0f) ? -1.0f : 1.0f;
 
-    /* 符号取反：使误差方向与 Euler PID 一致
-     * 无人机右倾 → q_err.x > 0 → 取反后负 → PID 输出负 → 修正右倾 */
-    float errRoll = sign * ex;  /* roll  误差 */
-    float errPitch = sign * ey; /* pitch 误差 */
-    float errYaw = sign * ez;   /* yaw   误差 */
+    float errRoll = sign * ex;
+    float errPitch = sign * ey;
+    float errYaw = sign * ez;
 
-    /* 将四元数向量部分正确转换为欧拉角角度误差（度）
-     * 依据：ex = sin(θ/2) * nx。在小角度下 θ ≈ 2 * ex (弧度)
-     * 1 弧度 ≈ 57.2958 度。因此系数为 2 * 57.2958 = 114.5916f */
-    float toDeg = 114.5916f;
-    float errRollDeg = errRoll * toDeg;
-    float errPitchDeg = errPitch * toDeg;
-    float errYawDeg = errYaw * toDeg;
-
-    /* 用误差四元数做 PID 输入（target = 0, measured = 误差值） */
-    rateSetRoll = PID_Update(&pidRoll, 0.0f, errRollDeg, dt);
-    rateSetPitch = PID_Update(&pidPitch, 0.0f, errPitchDeg, dt);
-    // rateSetYaw = PID_Update(&pidYaw, 0.0f, errYawDeg, dt);
-
-    rateSetYaw = 0; // TODO 调试消除yaw影响
+    rateSetRoll = PID_Update(&pidRoll, 0.0f, errRoll, dt);
+    rateSetPitch = PID_Update(&pidPitch, 0.0f, errPitch, dt);
+    rateSetYaw = 0;  // TODO 调试消除yaw影响
 }
 
 /* ──────────────────────────────────────────────────────────────
@@ -285,15 +270,15 @@ void Control_Init()
     TIM_Cmd(TIM4, ENABLE);
 
     /* 角度环 PID */
-    PID_Init(&pidHeight, 1.0f, 0.01f, 0.1f, -50.0f, 50.0f, 0.02f, -150.0f, 150.0f, 1.0f);
-    PID_Init(&pidRoll, 5.0f, 1.0f, 0.0f, -150.0f, 150.0f, 0.02f, -150.0f, 150.0f, 1.0f);
-    PID_Init(&pidPitch, 5.0f, 1.0f, 0.0f, -150.0f, 150.0f, 0.02f, -150.0f, 150.0f, 1.0f);
-    PID_Init(&pidYaw, 3.0f, 0.5f, 0.0f, -130.0f, 130.0f, 0.02f, -130.0f, 130.0f, 1.0f);
+    PID_Init(&pidHeight, 1.0f, 0.01f, 0.1f, -50.0f, 50.0f, 0.02f, -50.0f, 50.0f, 1.0f);
+    PID_Init(&pidRoll, 5.0f, 0.2f, 0.1f, -50.0f, 50.0f, 0.02f, -50.0f, 50.0f, 1.0f);
+    PID_Init(&pidPitch, 5.0f, 0.2f, 0.1f, -50.0f, 50.0f, 0.02f, -50.0f, 50.0f, 1.0f);
+    PID_Init(&pidYaw, 3.0f, 0.5f, 0.0f, -30.0f, 30.0f, 0.02f, -30.0f, 30.0f, 1.0f);
 
     /* 速率环 */
-    PID_Init(&pidRateRoll, 1.2f, 1.5f, 0.005f, -130.0f, 130.0f, 0.01f, -125.0f, 125.0f, 1.0f);
-    PID_Init(&pidRatePitch, 1.2f, 1.5f, 0.005f, -130.0f, 130.0f, 0.01f, -125.0f, 125.0f, 1.0f);
-    PID_Init(&pidRateYaw, 0.5f, 0.01f, 0.002f, -120.0f, 120.0f, 0.01f, -120.0f, 120.0f, 1.0f);
+    PID_Init(&pidRateRoll, 1.2f, 0.1f, 0.05f, -30.0f, 30.0f, 0.01f, -25.0f, 25.0f, 1.0f);
+    PID_Init(&pidRatePitch, 1.2f, 0.1f, 0.05f, -30.0f, 30.0f, 0.01f, -25.0f, 25.0f, 1.0f);
+    PID_Init(&pidRateYaw, 0.5f, 0.01f, 0.002f, -20.0f, 20.0f, 0.01f, -20.0f, 20.0f, 1.0f);
 }
 
 /* ══════════════════════════════════════════════════════════════
