@@ -202,9 +202,11 @@ void EKF_Update(EKF_Handle_t *ekf, const float32_t accel[3], const float32_t gyr
     if (accel_norm < 1e-6f) return;
 
     float32_t inv_norm = 1.0f / accel_norm;
-    ekf->z[0] = accel[0] * inv_norm;
-    ekf->z[1] = accel[1] * inv_norm;
-    ekf->z[2] = accel[2] * inv_norm;
+
+    // NED 环境下：加速度计测量的力向上。如果用测量数据对比重力(Down)，则需反转
+    ekf->z[0] = -accel[0] * inv_norm;
+    ekf->z[1] = -accel[1] * inv_norm;
+    ekf->z[2] = -accel[2] * inv_norm;
 
     Observation_Model(ekf->x, ekf->h);
     arm_sub_f32(ekf->z, ekf->h, ekf->y, 3);

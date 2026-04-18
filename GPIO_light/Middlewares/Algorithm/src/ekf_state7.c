@@ -59,9 +59,10 @@ static void State_Transition(EKF_Handle_t *ekf, const float32_t gyro[3],
     float32_t R21 = 2.0f * (q0 * q1 + q2 * q3);
     float32_t R22 = q0*q0 - q1*q1 - q2*q2 + q3*q3;
 
-    float32_t az_world = R20 * accel[0] + R21 * accel[1] + R22 * accel[2] - GRAVITY;
+    // 在 NED (FRD基准的地理系) 中，Z轴向下，重力加在向下方向也是正。因此 az_world = 运动加速度Z = \sum(R2i*ax) + GRAVITY
+    float32_t az_world = R20 * accel[0] + R21 * accel[1] + R22 * accel[2] + GRAVITY;
 
-    // 垂直速度和高度
+    // 垂直速度和高度 (在此系下向下增长，所以外部拿去用的时候应加负号)
     x[EKF_IDX_VZ]  += az_world * dt;
     x[EKF_IDX_ALT] += x[EKF_IDX_VZ] * dt;
 }
@@ -107,13 +108,13 @@ static void Compute_JacobianF(EKF_Handle_t *ekf, const float32_t gyro[3],
     F[0*EKF_STATE_DIM+5] =  half_dt * q2;
     F[0*EKF_STATE_DIM+6] =  half_dt * q3;
     F[1*EKF_STATE_DIM+4] = -half_dt * q0;
-    F[1*EKF_STATE_DIM+5] =  half_dt * q3;
+    F[1*EKF_STATE_DIM+5] = -half_dt * q3;
     F[1*EKF_STATE_DIM+6] = -half_dt * q2;
-    F[2*EKF_STATE_DIM+4] = -half_dt * q3;
+    F[2*EKF_STATE_DIM+4] =  half_dt * q3;
     F[2*EKF_STATE_DIM+5] = -half_dt * q0;
     F[2*EKF_STATE_DIM+6] =  half_dt * q1;
     F[3*EKF_STATE_DIM+4] =  half_dt * q2;
-    F[3*EKF_STATE_DIM+5] = -half_dt * q1;
+    F[3*EKF_STATE_DIM+5] =  half_dt * q1;
     F[3*EKF_STATE_DIM+6] = -half_dt * q0;
 
     // ∂h/∂vz = dt
@@ -342,7 +343,7 @@ void EKF_Update(EKF_Handle_t *ekf, const float32_t accel[3], const float32_t gyr
     arm_status status;
 
     if (!ekf->alt_initialized) {
-        ekf->x[EKF_IDX_ALT] = baro_altitude;
+        ekf->x[EKF_IDX_ALT] = -baro_altitude; // FRD 中 Z代表下(深度), 因此起飞方向是负的
         ekf->alt_initialized = 1;
     }
 
@@ -356,9 +357,9 @@ void EKF_Update(EKF_Handle_t *ekf, const float32_t accel[3], const float32_t gyr
             ay *= inv;
             az *= inv;
 
-            // 从加速度计估算 roll 和 pitch
-            float32_t roll = atan2f(ay, az);
-            float32_t pitch = asinf(-ax);
+            // 从加速度计估算 roll 和 pitch (FRD/NED标准)
+            float32_t roll = atan2f(-ay, -az);
+            float32_t pitch = asinf(ax);
 
             // 转换为四元数 (yaw = 0)
             float32_t cr = cosf(roll * 0.5f);
@@ -395,10 +396,10 @@ void EKF_Update(EKF_Handle_t *ekf, const float32_t accel[3], const float32_t gyr
 
     float32_t inv_norm = 1.0f / accel_norm;
 
-    ekf->z[0] = accel[0] * inv_norm;
-    ekf->z[1] = accel[1] * inv_norm;
-    ekf->z[2] = accel[2] * inv_norm;
-    ekf->z[3] = baro_altitude;
+    ekf->z[0] = -accel[0] * inv_norm;
+    ekf->z[1] = -accel[1] * inv_norm;
+    ekf->z[2] = -accel[2] * inv_norm;
+    ekf->z[3] = -baro_altitude;
 
     Observation_Model(ekf->x, ekf->h);
     arm_sub_f32(ekf->z, ekf->h, ekf->y, EKF_MEAS_DIM);
@@ -474,10 +475,10 @@ void EKF_GetEuler(const EKF_Handle_t *ekf, float32_t *roll, float32_t *pitch, fl
 
 float32_t EKF_GetAltitude(const EKF_Handle_t *ekf)
 {
-    return ekf->x[EKF_IDX_ALT];
+    return -ekf->x[EKF_IDX_ALT];
 }
 
 float32_t EKF_GetVelocityZ(const EKF_Handle_t *ekf)
 {
-    return ekf->x[EKF_IDX_VZ];
+    return -ekf->x[EKF_IDX_VZ];
 }

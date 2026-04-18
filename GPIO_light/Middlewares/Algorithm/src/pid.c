@@ -62,13 +62,13 @@ float PID_Update(PID_t* pid, float target, float measured, float dt) {
     float unclamped = P + pid->integrator + D;
 
     // 限幅输出
-    float out = fmaxf(fmin(unclamped, pid->out_max), pid->out_min);
+    float out = fmaxf(fminf(unclamped, pid->out_max), pid->out_min);
 
     // anti-windup：back-calculation（把输出被截断的误差反馈到积分器）
     float diff = out - unclamped; // negative/positive if saturated
     if (pid->aw_gain != 0.0f) {
         pid->integrator += pid->aw_gain * diff * dt;
-        pid->integrator = fmaxf(fmin(pid->integrator, pid->integrator_max), pid->integrator_min);
+        pid->integrator = fmaxf(fminf(pid->integrator, pid->integrator_max), pid->integrator_min);
     }
 
     pid->last_error = err;

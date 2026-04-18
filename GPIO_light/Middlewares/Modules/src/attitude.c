@@ -44,16 +44,17 @@ void Attitude_Init(sm_vec3_t accel_bias, sm_vec3_t accel_scale, float init_altit
 }
 
 void Attitude_Update(float dt) {
+    // 通用的 FRD（前-右-下 / Forward-Right-Down）坐标系
+    accel_current[0] = -(int16_t)((imu_rx_buf[0] << 8) | imu_rx_buf[1]) / 2048.0f;  // X 轴 (AX)：手拿飞机，机头绝对垂直朝向天空。此时支撑力从机尾推向机头，与 X 轴同向。预期：AX 应该是正数
+    accel_current[1] = (int16_t)((imu_rx_buf[2] << 8) | imu_rx_buf[3]) / 2048.0f;   // Y 轴 (AY)：手拿飞机，右侧机翼绝对垂直朝向天空（侧立）。此时支撑力从左翼推向右翼，与 Y 轴同向。预期：AY 应该是正数
+    accel_current[2] = -(int16_t)((imu_rx_buf[4] << 8) | imu_rx_buf[5]) / 2048.0f;  // Z 轴 (AZ)：飞机水平平放在桌面上。桌面支撑力向上，而 Z 轴指向地面（向下）。所以两者相反。预期：AZ 应该是负数
+
     // 1. 获取物理单位数据 (以 dps 和 g 为单位)
-    gyro_current[0] = ((int16_t)((imu_rx_buf[6] << 8) | imu_rx_buf[7])) / 16.4f * deg2rad;
-    gyro_current[1] = ((int16_t)((imu_rx_buf[8] << 8) | imu_rx_buf[9])) / 16.4f * deg2rad;
-    gyro_current[2] = ((int16_t)((imu_rx_buf[10] << 8) | imu_rx_buf[11])) / 16.4f * deg2rad;
+    gyro_current[0] = -((int16_t)((imu_rx_buf[6] << 8) | imu_rx_buf[7])) / 16.4f * deg2rad;  // X 轴 (GX / Roll)：保持水平，向右侧翻滚（右边下沉）。右手大拇指指前，四指弯向右下。预期：瞬间读数为 正(+)
+    gyro_current[1] = ((int16_t)((imu_rx_buf[8] << 8) | imu_rx_buf[9])) / 16.4f * deg2rad;   // Y 轴 (GY / Pitch)：保持水平，机头向上抬（抬头）。右手大拇指指右侧，四指从下往上翻（也就是抬头）。预期：瞬间读数为 正(+)
+    gyro_current[2] = -((int16_t)((imu_rx_buf[10] << 8) | imu_rx_buf[11])) / 16.4f * deg2rad;  // Z 轴 (GZ / Yaw)：保持水平，机头向右转（俯视看是顺时针转）。右手大拇指指向地面的 Z 轴，四指顺时针转。预期：瞬间读数为 正(+)
 
-    accel_current[0] = (int16_t)((imu_rx_buf[0] << 8) | imu_rx_buf[1]) / 2048.0f * g;
-    accel_current[1] = (int16_t)((imu_rx_buf[2] << 8) | imu_rx_buf[3]) / 2048.0f * g;
-    accel_current[2] = (int16_t)((imu_rx_buf[4] << 8) | imu_rx_buf[5]) / 2048.0f * g;
-
-    mag_current[0] = (int16_t)((mag_rx_buf[1] << 8) | mag_rx_buf[0]) * 0.15f; // 0.15 μT/LSB
+    mag_current[0] = (int16_t)((mag_rx_buf[1] << 8) | mag_rx_buf[0]) * 0.15f;  // 0.15 μT/LSB
     mag_current[1] = (int16_t)((mag_rx_buf[3] << 8) | mag_rx_buf[2]) * 0.15f; // 0.15 μT/LSB
     mag_current[2] = (int16_t)((mag_rx_buf[5] << 8) | mag_rx_buf[4]) * 0.15f; // 0.15 μT/LSB
 
@@ -73,12 +74,15 @@ void Attitude_Update(float dt) {
         accel_current[2] = calibrated_accel[2];
     }
 
+    // 转换到 m/s^2 交给 EKF
+    float accel_ms2[3] = {accel_current[0] * g, accel_current[1] * g, accel_current[2] * g};
+
     LowPass_Update(&altitude_filter, altitude_rx);
     
     #ifdef ATTITUDE_EKF_BARO
-    EKF_Update(&imu_ekf, accel_current, gyro_current, altitude_filter.output, dt);
+    EKF_Update(&imu_ekf, accel_ms2, gyro_current, altitude_filter.output, dt);
     #else
-    EKF_Update(&imu_ekf, accel_current, gyro_current, dt);
+    EKF_Update(&imu_ekf, accel_ms2, gyro_current, dt);
     #endif /* ATTITUDE_EKF_BARO */
 }
 
@@ -113,7 +117,10 @@ void Attitude_GetGyro(sm_vec3_t gyro) {
 }
 
 void Attitude_GetAccel(sm_vec3_t accel) {
-    memcpy(accel, accel_current, sizeof(sm_vec3_t));
+    // 因为内部 accel_current 保存的是 1G 的单位，这里恢复为 m/s^2 供外界(比如UI)使用
+    accel[0] = accel_current[0] * g;
+    accel[1] = accel_current[1] * g;
+    accel[2] = accel_current[2] * g;
 }
 
 // void Attitude_GetMag(sm_vec3_t mag);
