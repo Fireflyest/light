@@ -2,7 +2,7 @@
 
 __IO uint32_t systemTick;
 
-static const uint32_t TARGET_FRAME_TIME = 10;   // 帧间隔ms
+static const uint32_t TARGET_FRAME_TIME = 5;   // 帧间隔ms
 static uint32_t frameStartTick = 0;
 static uint32_t logicCounter = 0;               // 程序循环计数
 static uint32_t logicFps = 0;                   // 逻辑帧率

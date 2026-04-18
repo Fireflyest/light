@@ -141,15 +141,16 @@ void UI_Cube_Draw(UI_Widget* widget) {
     Quaternion q;
     sm_quat_t current_quat;
     Attitude_GetQuat(current_quat);
+    
     q.w = current_quat[0];
     q.x = current_quat[1];
-    q.y = -current_quat[2];
-    q.z = -current_quat[3];
+    q.y = current_quat[2];
+    q.z = current_quat[3];
 
     GFX3D_DrawCube(&center, &halfExtent, &q, GFX_COLOR_WHITE);
 
     float axisLen = 10.0f; // 轴的长度（应大于立方体半长 20.0f）
-    Vector3D vX = {-axisLen, 0.0f, 0.0f};
+    Vector3D vX = {axisLen, 0.0f, 0.0f};
     Vector3D vY = {0.0f, axisLen, 0.0f};
     Vector3D vZ = { 0.0f, 0.0f, axisLen * 2 }; // *2 让Z轴更明显
 

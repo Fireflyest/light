@@ -2,6 +2,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "control.h"
+#include "ble.h"
+#include "battery.h"
 
 
 
@@ -105,7 +108,7 @@ int main() {
 
     PWM_GPIO_Init();
     PWM_TIM_Init(PWM_PERIOD, PWM_PRESCALER);
-    Init_DMA_For_PWM_TIM3(pwmDutyBuffer);
+    // Init_DMA_For_PWM_TIM3(pwmDutyBuffer);
 
 
     Control_Init();
@@ -154,6 +157,54 @@ int main() {
 
         Battery_Measure_Step();
 
+        /* 发送数据包 */
+        {
+            static uint32_t last_telemetry_time = 0;
+            static uint8_t telemetry_tick = 0; // 控制发送包类型频率
+            telemetry_tick++;
+            
+            // 每 10 帧发送一次状态包 (类型 0x01)，根据你的配置通常帧率200-1000？ 假设降到一个合适的频率 1-5Hz
+            // 假设主循环约100-200Hz
+            if (telemetry_tick % 20 == 0) {
+                uint8_t status_buf[32] = {0};
+                status_buf[0] = 0xAA;
+                status_buf[1] = 0x01; // 包类型
+                status_buf[2] = (uint8_t)Control_GetFlightPhase();
+                status_buf[3] = (uint8_t)Control_GetMode();
+                status_buf[4] = Control_IsArmed();
+                status_buf[5] = Battery_GetPercentage();
+                status_buf[6] = 0; // GPS 星数
+                int16_t rssi = 0;
+                memcpy(&status_buf[7], &rssi, 2);
+                BLE_WriteData(status_buf, 32);
+            }
+            
+            // 姿态与 PID 包 (类型 0x02)，每帧或每几帧发送一次以同步曲线
+            if (telemetry_tick % 5 == 0) { // 稍微降低频率
+                uint8_t att_buf[32] = {0};
+                att_buf[0] = 0xAA;
+                att_buf[1] = 0x02; // 包类型
+                
+                sm_quat_t quat;
+                Attitude_GetQuat(quat);
+                memcpy(&att_buf[2], &quat[0], 4);
+                memcpy(&att_buf[6], &quat[1], 4);
+                memcpy(&att_buf[10], &quat[2], 4);
+                memcpy(&att_buf[14], &quat[3], 4);
+                
+                float rates[3];
+                rates[0] = rateSetRoll;
+                rates[1] = rateSetPitch;
+                rates[2] = rateSetYaw;
+                
+                memcpy(&att_buf[18], &rates[0], 4);
+                memcpy(&att_buf[22], &rates[1], 4);
+                memcpy(&att_buf[26], &rates[2], 4);
+                
+                BLE_WriteData(att_buf, 32);
+            }
+        }
+
         if (Key_PressConsume()) {
             if (Window_Current() == WINDOW_NONE) {
                 Window_To(WINDOW_IMU);
@@ -175,13 +226,15 @@ int main() {
             uint8_t result = Command_ParseAndExecute((char*)buffer, len);
             BLE_WriteData(&result, 1);
             // BLE_WriteData(buffer, len); // Echo back received data
+
+            
         }
         if (len > 0) {
             UI_Logger_AddLine(&logWindow, (char*)buffer);
         }
 
         ControlAttitude_Loop();
-        ControlMotor_Loop();
+        // ControlMotor_Loop();
 
         // char pwm_status[64];
         // sprintf(pwm_status, "PWM: %d, %d, %d, %d\r\n", 
