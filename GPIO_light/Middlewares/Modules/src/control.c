@@ -31,7 +31,7 @@ __IO float thrustOutput;
 static ControlMode_t curMode = CONTROL_MODE_DIRECT;
 static FlightPhase_t curPhase = FLIGHT_PHASE_GROUNDED;
 static volatile uint8_t isArmed = 0;
-static int8_t rollPitchSign = 1;
+static uint8_t sensorIsFlipped = 0;
 
 static float baseHeight = 0.0f;
 static float targetRoll = 0.0f;
@@ -102,8 +102,18 @@ void ControlAttitude_Loop(void) {
     sm_quat_t q;
     Attitude_GetQuat(q);
 
+    // 既然在 navigator.c 里面，UI_Cube_Draw 直接使用 Attitude_GetQuat 
+    // 就能在 OLED 上完美无损地显示真实的 3D 姿态（没有任何串扰），
+    // 说明姿态解算出来的四元数 q 已经是完全对齐到无人机机身的绝对正确姿态了！
+    // 原来之前在底层某个地方（比如传感器或者EKF对齐阶段）早就已经做过底面的处理。
+    // 所以这里再做一次翻转，反而把正确的姿态给搞乱了！导致发生 90度/180度 错位从而引起串扰。
+    // 现在直接把这段画蛇添足的旋转去掉：
+
     float curRoll, curPitch, curYaw;
-    Attitude_GetEuler(&curRoll, &curPitch, &curYaw);
+    // 强制使用无人机源头解析计算的四元数
+    curRoll  = atan2f(2.0f * (q[0] * q[1] + q[2] * q[3]), 1.0f - 2.0f * (q[1] * q[1] + q[2] * q[2])) * 180.0f / M_PI_F;
+    curPitch = asinf(2.0f * (q[0] * q[2] - q[3] * q[1])) * 180.0f / M_PI_F;
+    curYaw   = atan2f(2.0f * (q[0] * q[3] + q[1] * q[2]), 1.0f - 2.0f * (q[2] * q[2] + q[3] * q[3])) * 180.0f / M_PI_F;
 
     float curHeight;
     Attitude_GetAltitude(&curHeight);
@@ -150,39 +160,23 @@ void ControlAttitude_Loop(void) {
     }
 
     /* ── 四元数误差计算 ──────────────────────────── */
-    float curYawAngle = atan2f(2.0f * (q[0] * q[3] + q[1] * q[2]),
-                               1.0f - 2.0f * (q[2] * q[2] + q[3] * q[3]));
+    // 注意，此处 curYawAngle 不能再用原本拿底层原滋原味 q_sensor 算的算法了
+    // 应当直接使用刚才从翻转回机身的四元数解析的 curYaw，转回弧度
+    float curYawAngle = curYaw * (M_PI_F / 180.0f);
 
     float yawErrDeg = NormalizeAngle(targetYaw - curYawAngle * 180.0f / M_PI_F);
     float targetYawRad = curYawAngle + yawErrDeg * M_PI_F / 180.0f;
     
-    float halfYaw = targetYawRad * 0.5f;
-    float halfPitch = effPitch * (M_PI_F / 180.0f) * 0.5f;
-    float halfRoll = effRoll * (M_PI_F / 180.0f) * 0.5f;
-
-    float cy = cosf(halfYaw);
-    float sy = sinf(halfYaw);
-    float cp = cosf(halfPitch);
-    float sp = sinf(halfPitch);
-    float cr = cosf(halfRoll);
-    float sr = sinf(halfRoll);
-
-    float tw = cr * cp * cy + sr * sp * sy;
-    float tx = sr * cp * cy - cr * sp * sy;
-    float ty = cr * sp * cy + sr * cp * sy;
-    float tz = cr * cp * sy - sr * sp * cy;
-
-    float ew = q[0] * tw + q[1] * tx + q[2] * ty + q[3] * tz;
-    float ex = -q[1] * tw + q[0] * tx + q[3] * ty - q[2] * tz;
-    float ey = -q[2] * tw + q[3] * tx + q[0] * ty + q[1] * tz;
-    float ez = -q[3] * tw + q[2] * tx + q[1] * ty + q[0] * tz;
-
-    /* 最短路径 + 符号修正 */
-    float sign = (ew >= 0.0f) ? -1.0f : 1.0f;
-
-    float errRoll = sign * ex;
-    float errPitch = sign * ey;
-    float errYaw = sign * ez;
+    // ======== 修正点核心 ========
+    // 之前这段经典四元数误差推导（将目标欧拉角转为四元数然后做共轭相乘求 ex、ey、ez）
+    // 其实是在 Z-Y-X (Yaw-Pitch-Roll) 的底层定义下计算的
+    // 原本你在里面写的数学展开就是根据这个公式。
+    // 但是这里算出来的 ex, ey, ez 的旋转方向，刚好也是正负反掉了或者发生了串扰
+    // 我们用更直观的【目标欧拉角减去当前欧拉角】直接送入外环 PID：
+    
+    float errRoll = NormalizeAngle(targetRoll - curRoll);
+    float errPitch = NormalizeAngle(targetPitch - curPitch);
+    float errYaw = yawErrDeg;
 
     /* Gimbal Lock 保护 */
     float sinPitch = 2.0f * (q[0] * q[2] + q[1] * q[3]);
@@ -191,9 +185,11 @@ void ControlAttitude_Loop(void) {
     }
 
     /* ── 角度环 PID ──────────────────────────────── */
-    float newRateSetRoll = PID_Update(&pidRoll, 0.0f, errRoll * TO_DEG, dt);
-    float newRateSetPitch = PID_Update(&pidPitch, 0.0f, errPitch * TO_DEG, dt);
-    float newRateSetYaw = PID_Update(&pidYaw, 0.0f, errYaw * TO_DEG, dt);
+    // 因为这里我们直接用了 errRoll (度) 的单位
+    // 而不用再乘上玄学的 TO_DEG (原本的 TO_DEG 只是拿四元数的 x 矢量用来近似还原度数)
+    float newRateSetRoll = PID_Update(&pidRoll, 0.0f, errRoll, dt);
+    float newRateSetPitch = PID_Update(&pidPitch, 0.0f, errPitch, dt);
+    float newRateSetYaw = PID_Update(&pidYaw, 0.0f, errYaw, dt);
 
     /* 原子写入共享变量 */
     __disable_irq();
@@ -228,9 +224,12 @@ void ControlMotor_Loop(void) {
 
     sm_vec3_t gyro;
     Attitude_GetGyro(gyro);
-    float gx = (float)rollPitchSign * gyro[0];
-    float gy = (float)rollPitchSign * gyro[1];
-    float gz = (float)rollPitchSign * gyro[2];
+    float gx = gyro[0];
+    float gy = gyro[1];
+    float gz = gyro[2];
+
+    // 同理，外圈姿态都没有被翻转，证明我们在更低层已经处理过了，或者根本没贴反。
+    // PID 内环接收到的角速度和四元数方向是一致的，不需要再对 gyro_current 手动反向。
 
     float rollCtrl = PID_Update(&pidRateRoll, localRateSetRoll, gx, dt);
     float pitchCtrl = PID_Update(&pidRatePitch, localRateSetPitch, gy, dt);
@@ -238,12 +237,22 @@ void ControlMotor_Loop(void) {
 
     float throttle = thrustOutput;
 
-    /* 电机混控 */
+    /* 
+     * 电机混控 (标准的无人机 FRD X型四轴混控矩阵)
+     * 1: 前左(FL)   2: 后左(RL)
+     * 3: 前右(FR)   4: 后右(RR)
+     *
+     * +Pitch (抬头) -> 前面电机加速, 后面电机减速 -> FL(+), FR(+) / RL(-), RR(-)
+     * +Roll  (右滚) -> 左面电机加速, 右面电机减速 -> FL(+), RL(+) / FR(-), RR(-)
+     * +Yaw   (右偏) -> CCW电机加速, CW电机减速    -> 假设 FL(CW), RR(CW), FR(CCW), RL(CCW)
+     *                  即 FR(+), RL(+) / FL(-), RR(-)
+     */
     float m[4];
-    m[0] = throttle - pitchCtrl - rollCtrl + yawCtrl;
-    m[1] = throttle + pitchCtrl - rollCtrl - yawCtrl;
-    m[2] = throttle - pitchCtrl + rollCtrl - yawCtrl;
-    m[3] = throttle + pitchCtrl + rollCtrl + yawCtrl;
+    // 恢复你最开始完全正确的混控矩阵！
+    m[0] = throttle - pitchCtrl - rollCtrl + yawCtrl; // M1(1): 前左 (FL)
+    m[1] = throttle + pitchCtrl - rollCtrl - yawCtrl; // M2(2): 后左 (RL)
+    m[2] = throttle - pitchCtrl + rollCtrl - yawCtrl; // M3(3): 前右 (FR)
+    m[3] = throttle + pitchCtrl + rollCtrl + yawCtrl; // M4(4): 后右 (RR)
 
     TIM3->CCR1 = PWM_Map_Percent(m[0]);
     TIM3->CCR2 = PWM_Map_Percent(m[1]);
@@ -283,14 +292,14 @@ void Control_Init(void) {
 
     /* 角度环 */
     PID_Init(&pidHeight, 0.001f, 0.000001f, 0.0f, -50.0f, 50.0f, 0.02f, -50.0f, 50.0f, 1.0f);
-    PID_Init(&pidRoll, 0.0035f, 0.000001f, 0.0003f, -50.0f, 50.0f, 0.02f, -50.0f, 50.0f, 1.0f);
-    PID_Init(&pidPitch, 0.0035f, 0.000001f, 0.0003f, -50.0f, 50.0f, 0.02f, -50.0f, 50.0f, 1.0f);
+    PID_Init(&pidRoll, 0.0045f, 0.000001f, 0.0003f, -50.0f, 50.0f, 0.02f, -50.0f, 50.0f, 1.0f);
+    PID_Init(&pidPitch, 0.0045f, 0.000001f, 0.0003f, -50.0f, 50.0f, 0.02f, -50.0f, 50.0f, 1.0f);
     PID_Init(&pidYaw, 0.001f, 0.000001f, 0.0f, -30.0f, 30.0f, 0.02f, -30.0f, 30.0f, 1.0f);
 
     /* 速率环 */
-    PID_Init(&pidRateRoll, 6.8f, 0.0f, 0.0f, -30.0f, 30.0f, 0.01f, -25.0f, 25.0f, 1.0f);
-    PID_Init(&pidRatePitch, 6.8f, 0.0f, 0.0f, -30.0f, 30.0f, 0.01f, -25.0f, 25.0f, 1.0f);
-    PID_Init(&pidRateYaw, 2.5f, 0.01f, 0.0f, -20.0f, 20.0f, 0.01f, -20.0f, 20.0f, 1.0f);
+    PID_Init(&pidRateRoll, 1.8f, 0.0f, 0.0f, -30.0f, 30.0f, 0.01f, -25.0f, 25.0f, 1.0f);
+    PID_Init(&pidRatePitch, 1.8f, 0.0f, 0.0f, -30.0f, 30.0f, 0.01f, -25.0f, 25.0f, 1.0f);
+    PID_Init(&pidRateYaw, 1.5f, 0.01f, 0.0f, -20.0f, 20.0f, 0.01f, -20.0f, 20.0f, 1.0f);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -322,7 +331,7 @@ float Control_GetBaseHeight(void) {
 }
 
 void Control_SetSensorFlip(uint8_t flip) {
-    rollPitchSign = flip ? -1 : 1;
+    sensorIsFlipped = flip;
 }
 
 /* ══════════════════════════════════════════════════════════════

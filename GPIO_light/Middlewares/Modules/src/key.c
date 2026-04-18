@@ -1,8 +1,7 @@
 
 
 #include "key.h"
-#include "usystem.h"
-
+#include <stddef.h>
 
 static __IO uint8_t keyStatus = KEY_STATE_RELEASED;
 static __IO uint8_t lastRawStatus = KEY_STATE_RELEASED;
