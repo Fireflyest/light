@@ -29,7 +29,8 @@
             "path": "light.csolution.yml",
             "target": "STM32F401RCTx",
             "config": {
-                "run": "CMSIS Load+Run"
+                "run": "CMSIS Load+Run",
+                "debug": "STLink@pyOCD (attach)"
             }
         }
     ]

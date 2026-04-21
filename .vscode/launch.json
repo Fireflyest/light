@@ -43,7 +43,7 @@
                     "--connect",
                     "attach",
                     "--cbuild-run",
-                    "${command:cmsis-csolution.getCbuildRunFile}",
+                    "out/light+STM32F401RCTx.cbuild-run.yml",
                     "--quiet",
                     "--log",
                     "*.cbuild_run,*server=info"
@@ -51,7 +51,7 @@
                 "port": "3333"
             },
             "cmsis": {
-                "cbuildRunFile": "${command:cmsis-csolution.getCbuildRunFile}",
+                "cbuildRunFile": "out/light+STM32F401RCTx.cbuild-run.yml",
                 "updateConfiguration": "auto"
             }
         },
@@ -77,7 +77,7 @@
                 "port": "3333"
             },
             "cmsis": {
-                "cbuildRunFile": "${command:cmsis-csolution.getCbuildRunFile}",
+                "cbuildRunFile": "out/light+STM32F401RCTx.cbuild-run.yml",
                 "updateConfiguration": "auto"
             }
         }

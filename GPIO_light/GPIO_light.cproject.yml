@@ -114,7 +114,7 @@ project:
   output:
     type:
       - elf
-    #  - hex
+      - hex
   packs:
     - pack: Keil::STM32F4xx_DFP
     - pack: ARM::CMSIS-DSP@1.11.0
