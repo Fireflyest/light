@@ -98,7 +98,7 @@ void Spatial_QuatNormalize(sm_quat_t q) {
     q[0] *= inv; q[1] *= inv; q[2] *= inv; q[3] *= inv;
 }
 
-void Spatial_QuatRotateVector(sm_vec3_t v, const sm_quat_t q) {
+void Spatial_Vec3RotateByQuat(sm_vec3_t v, const sm_quat_t q) {
     sm_vec3_t temp;
     Spatial_RotatePointByQuat(temp, v, q);
     v[0] = temp[0]; v[1] = temp[1]; v[2] = temp[2];
@@ -132,6 +132,13 @@ void Spatial_QuatGetEuler(float *yaw, float *pitch, float *roll, const sm_quat_t
         
     // roll (X-axis rotation)
     *roll = atan2f(2.0f * (q[1] * q[0] + q[2] * q[3]), q00 - q11 - q22 + q33);
+}
+
+void Spatial_QuatRotate(sm_quat_t out, float yaw, float pitch, float roll) {
+    sm_quat_t rot;
+    Spatial_QuatFromEuler(rot, yaw, pitch, roll);
+    Spatial_QuatMultiply(out, rot, out);
+    Spatial_QuatNormalize(out);
 }
 
 float Spatial_QuatAngleBetween(const sm_quat_t q1, const sm_quat_t q2) {
