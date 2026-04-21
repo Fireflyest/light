@@ -125,9 +125,6 @@ FlightPhase_t Control_GetFlightPhase(void);
 /** @brief  获取上电时记录的基准高度 (m) */
 float   Control_GetBaseHeight(void);
 
-/** @brief  设置传感器翻转 */
-void Control_SetSensorFlip(uint8_t flip);
-
 /* ──────────────────────────────────────────────────────────────
     *  解锁 / 锁定
     * ────────────────────────────────────────────────────────────── */
