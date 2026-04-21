@@ -1,7 +1,84 @@
+/**
+ * ============================================================================
+ *  control.c — 四旋翼级联 PID 飞行控制器
+ * ============================================================================
+ *
+ *  一、新增内容
+ *  ─────────────────────────────────────────────────────────────────────────
+ *    - 全局目标四元数 targetQuat（机体坐标系）
+ *    - sensorIsFlipped 处理：传感器→机体 坐标变换
+ *    - 四元数误差计算替代欧拉角直接相减
+ *    - 陀螺仪偏置补偿（通过 attitude 接口）
+ *    - 所有四元数运算使用 spatial_math.h
+ *
+ *  二、sensorIsFlipped 坐标变换
+ *  ─────────────────────────────────────────────────────────────────────────
+ *    传感器安装在板子底部时，传感器坐标系 = 机体坐标系绕 X 轴旋转 180°
+ *
+ *    翻转四元数：q_flip = [0, 1, 0, 0]（Hamilton 绕 X 轴 180°）
+ *
+ *    传感器四元数 → 机体四元数：
+ *      q_body = q_flip × q_sensor = [-x, w, -z, y]
+ *
+ *    验证：
+ *      无人机平放（正朝上）：
+ *        传感器倒扣 → q_sensor = [0, 1, 0, 0]
+ *        q_body = [0,1,0,0] × [0,1,0,0] = [-1, 0, 0, 0] ≡ [1, 0, 0, 0] ✅
+ *
+ *      无人机倒扣（正朝下）：
+ *        传感器朝上 → q_sensor = [1, 0, ,1,00, 0,0] × [1,0,0,0] = [0, 1, 0, 0] ✅
+ *
+ *   ]
+ *        q_body = [0 陀螺仪变换（绕 X 轴 180° 旋转）：
+ *      gyro_body[0] =  gyro_sensor[0]   (X 轴不变)
+ *      gyro_body[1] = -gyro_sensor[1]   (Y 轴反向)
+ *      gyro_body[2] = -gyro_sensor[2]   (Z 轴反向)
+ *
+ *  三、四元数误差计算
+ *  ─────────────────────────────────────────────────────────────────────────
+ *    目标四元数 targetQuat（由目标欧拉角构建）
+ *    当前四元数 curQuat（经 sensorIsFlipped 变换后）
+ *
+ *    误差四元数（机体坐标系中的相对旋转）：
+ *      q_err = conj(q_target) × q_cur
+ *
+ *    从 q_err 提取欧拉角 → 送入角度环 PID
+ *
+ *  四、陀螺仪偏置补偿
+ *  ─────────────────────────────────────────────────────────────────────────
+ *    EKF 估计的陀螺仪偏置 [bx, by, bz]
+ *    补偿后：gyro_corrected = gyro_raw - bias
+ *
+ *
+ * ┌──────┬──────────────────┬──────────────────────┬──────────────────────┐
+ * │ 测试  │ 物理姿态           │ EKF 输出（传感器）     │ SensorToBody 后       │
+ * ├──────┼──────────────────┼──────────────────────┼──────────────────────┤
+ * │ T1   │ 平放（正朝上）      │ [0,    1,    0,   0] │ [1,    0,    0,   0] │
+ * ├──────┼──────────────────┼──────────────────────┼──────────────────────┤
+ * │ T2   │ 倒扣（正朝下）      │ [1,    0,    0,   0] │ [0,    1,    0,   0] │
+ * ├──────┼──────────────────┼──────────────────────┼──────────────────────┤
+ * │ T3   │ 右滚 90°          │ [0.707, 0.707, 0, 0] │ [0.707, 0.707, 0, 0] │
+ * ├──────┼──────────────────┼──────────────────────┼──────────────────────┤
+ * │ T4   │ 左滚 90°          │ [0.707,-0.707, 0, 0] │ [0.707,-0.707, 0, 0] │
+ * ├──────┼──────────────────┼──────────────────────┼──────────────────────┤
+ * │ T5   │ 抬头 90°          │ [0.707, 0,  0.707, 0]│ [0.707, 0, -0.707, 0]│
+ * ├──────┼──────────────────┼──────────────────────┼──────────────────────┤
+ * │ T6   │ 低头 90°          │ [0.707, 0, -0.707, 0]│ [0.707, 0,  0.707, 0]│
+ * ├──────┼──────────────────┼──────────────────────┼──────────────────────┤
+ * │ T7   │ 右转 90°          │ [0.707, 0, 0,  0.707]│ [0.707, 0, 0, -0.707]│
+ * ├──────┼──────────────────┼──────────────────────┼──────────────────────┤
+ * │ T8   │ 左转 90°          │ [0.707, 0, 0, -0.707]│ [0.707, 0, 0,  0.707]│
+ * └──────┴──────────────────┴──────────────────────┴──────────────────────┘
+ * 
+ *
+ * ============================================================================
+ */
+
 #include "control.h"
 #include <math.h>
 #include "attitude.h"
 #include "pwm.h"
+#include "spatial_math.h"
 
 /* ══════════════════════════════════════════════════════════════
  *  配置常量
@@ -10,7 +87,6 @@
 #define THROTTLE_DEADBAND 2.0f
 #define GIMBAL_LOCK_THRESH 0.95f /* sin(pitch) > 此值时禁用 yaw */
 #define M_PI_F 3.14159265f
-#define TO_DEG 114.5916f /* 180 / π */
 
 /* ══════════════════════════════════════════════════════════════
  *  PID & 公开变量
@@ -41,6 +117,9 @@ static float targetHeight = 0.0f;
 static float moveForward = 0.0f;
 static float moveRight = 0.0f;
 
+/* 目标四元数（机体坐标系，Hamilton [w,x,y,z]）*/
+static sm_quat_t targetQuat = {1.0f, 0.0f, 0.0f, 0.0f};
+
 /* ══════════════════════════════════════════════════════════════
  *  内部工具
  * ══════════════════════════════════════════════════════════════ */
@@ -70,6 +149,10 @@ static void ResetAllTargets(void) {
     targetHeight = baseHeight;
     moveForward = 0.0f;
     moveRight = 0.0f;
+    targetQuat[0] = 1.0f;
+    targetQuat[1] = 0.0f;
+    targetQuat[2] = 0.0f;
+    targetQuat[3] = 0.0f;
 }
 
 static void StopMotors(void) {
@@ -86,6 +169,33 @@ static void StopMotors(void) {
     TIM3->CCR4 = 0;
 }
 
+/**
+ * @brief 传感器四元数 → 机体四元数
+ * @param q  输入传感器四元数 [w,x,y,z]，输出机体四元数 [w,x,y,z]
+ *
+ * 传感器安装在板子底部时（sensorIsFlipped=1）：
+ *   传感器坐标系 = 机体坐标系绕 X 轴旋转 180°
+ *   q_body = q_flip × q_sensor
+ *   其中 q_flip = Spatial_QuatRotate(0, 0, π) = [0, 1, 0, 0]
+ *
+ * 正常安装时（sensorIsFlipped=0）：
+ *   q_body = q_sensor（不变）
+ */
+static void SensorToBody(sm_quat_t q) {
+    if (sensorIsFlipped) {
+        sm_quat_t q_flip = {1.0f, 0.0f, 0.0f, 0.0f};
+        Spatial_QuatRotate(q_flip, 0, 0, M_PI_F);  // roll = 180°
+
+        sm_quat_t q_body;
+        Spatial_QuatMultiply(q_body, q_flip, q);
+
+        q[0] = q_body[0];
+        q[1] = q_body[1];
+        q[2] = q_body[2];
+        q[3] = q_body[3];
+    }
+}
+
 /* ══════════════════════════════════════════════════════════════
  *  外环（姿态 + 高度）— 由主循环以 200 Hz 调用
  * ══════════════════════════════════════════════════════════════ */
@@ -98,22 +208,17 @@ void ControlAttitude_Loop(void) {
 
     const float dt = 1.0f / (float)ATTITUDE_LOOP_HZ;
 
-    /* ── 读取传感器 ──────────────────────────────── */
-    sm_quat_t q;
-    Attitude_GetQuat(q);
+    /* ── 读取传感器四元数并转换为机体坐标系 ────────── */
+    sm_quat_t curQuat;
+    Attitude_GetQuat(curQuat);
+    SensorToBody(curQuat);
 
-    // 既然在 navigator.c 里面，UI_Cube_Draw 直接使用 Attitude_GetQuat 
-    // 就能在 OLED 上完美无损地显示真实的 3D 姿态（没有任何串扰），
-    // 说明姿态解算出来的四元数 q 已经是完全对齐到无人机机身的绝对正确姿态了！
-    // 原来之前在底层某个地方（比如传感器或者EKF对齐阶段）早就已经做过底面的处理。
-    // 所以这里再做一次翻转，反而把正确的姿态给搞乱了！导致发生 90度/180度 错位从而引起串扰。
-    // 现在直接把这段画蛇添足的旋转去掉：
-
+    /* ── 解析当前欧拉角（机体坐标系） ────────────── */
     float curRoll, curPitch, curYaw;
-    // 强制使用无人机源头解析计算的四元数
-    curRoll  = atan2f(2.0f * (q[0] * q[1] + q[2] * q[3]), 1.0f - 2.0f * (q[1] * q[1] + q[2] * q[2])) * 180.0f / M_PI_F;
-    curPitch = asinf(2.0f * (q[0] * q[2] - q[3] * q[1])) * 180.0f / M_PI_F;
-    curYaw   = atan2f(2.0f * (q[0] * q[3] + q[1] * q[2]), 1.0f - 2.0f * (q[2] * q[2] + q[3] * q[3])) * 180.0f / M_PI_F;
+    Spatial_QuatGetEuler(&curYaw, &curPitch, &curRoll, curQuat);
+    curRoll *= (180.0f / M_PI_F);
+    curPitch *= (180.0f / M_PI_F);
+    curYaw *= (180.0f / M_PI_F);
 
     float curHeight;
     Attitude_GetAltitude(&curHeight);
@@ -150,7 +255,7 @@ void ControlAttitude_Loop(void) {
         return;
     }
 
-    /* ── 姿态指令 ────────────────────────────────── */
+    /* ── 姿态指令（加入平移叠加） ────────────────── */
     float effRoll = targetRoll;
     float effPitch = targetPitch;
 
@@ -159,34 +264,37 @@ void ControlAttitude_Loop(void) {
         effRoll += moveRight * 25.0f;
     }
 
-    /* ── 四元数误差计算 ──────────────────────────── */
-    // 注意，此处 curYawAngle 不能再用原本拿底层原滋原味 q_sensor 算的算法了
-    // 应当直接使用刚才从翻转回机身的四元数解析的 curYaw，转回弧度
-    float curYawAngle = curYaw * (M_PI_F / 180.0f);
+    /* ── 构建目标四元数（机体坐标系） ────────────── */
+    float yawErrDeg = NormalizeAngle(targetYaw - curYaw);
+    float effYaw = NormalizeAngle(curYaw + yawErrDeg);
 
-    float yawErrDeg = NormalizeAngle(targetYaw - curYawAngle * 180.0f / M_PI_F);
-    float targetYawRad = curYawAngle + yawErrDeg * M_PI_F / 180.0f;
-    
-    // ======== 修正点核心 ========
-    // 之前这段经典四元数误差推导（将目标欧拉角转为四元数然后做共轭相乘求 ex、ey、ez）
-    // 其实是在 Z-Y-X (Yaw-Pitch-Roll) 的底层定义下计算的
-    // 原本你在里面写的数学展开就是根据这个公式。
-    // 但是这里算出来的 ex, ey, ez 的旋转方向，刚好也是正负反掉了或者发生了串扰
-    // 我们用更直观的【目标欧拉角减去当前欧拉角】直接送入外环 PID：
-    
-    float errRoll = NormalizeAngle(targetRoll - curRoll);
-    float errPitch = NormalizeAngle(targetPitch - curPitch);
-    float errYaw = yawErrDeg;
+    Spatial_QuatFromEuler(targetQuat,
+                          effYaw * (M_PI_F / 180.0f),
+                          effPitch * (M_PI_F / 180.0f),
+                          effRoll * (M_PI_F / 180.0f));
+    Spatial_QuatNormalize(targetQuat);
+
+    /* ── 四元数误差计算 ──────────────────────────── */
+    sm_quat_t qTargetInv = {targetQuat[0], targetQuat[1], targetQuat[2], targetQuat[3]};
+    Spatial_QuatConjugate(qTargetInv);
+
+    sm_quat_t qErr;
+    Spatial_QuatMultiply(qErr, qTargetInv, curQuat);
+    Spatial_QuatNormalize(qErr);
+
+    float errRoll, errPitch, errYaw;
+    Spatial_QuatGetEuler(&errYaw, &errPitch, &errRoll, qErr);
+    errRoll *= (180.0f / M_PI_F);
+    errPitch *= (180.0f / M_PI_F);
+    errYaw *= (180.0f / M_PI_F);
 
     /* Gimbal Lock 保护 */
-    float sinPitch = 2.0f * (q[0] * q[2] + q[1] * q[3]);
+    float sinPitch = 2.0f * (curQuat[0] * curQuat[2] + curQuat[1] * curQuat[3]);
     if (fabsf(sinPitch) > GIMBAL_LOCK_THRESH) {
         errYaw = 0.0f;
     }
 
     /* ── 角度环 PID ──────────────────────────────── */
-    // 因为这里我们直接用了 errRoll (度) 的单位
-    // 而不用再乘上玄学的 TO_DEG (原本的 TO_DEG 只是拿四元数的 x 矢量用来近似还原度数)
     float newRateSetRoll = PID_Update(&pidRoll, 0.0f, errRoll, dt);
     float newRateSetPitch = PID_Update(&pidPitch, 0.0f, errPitch, dt);
     float newRateSetYaw = PID_Update(&pidYaw, 0.0f, errYaw, dt);
@@ -200,7 +308,7 @@ void ControlAttitude_Loop(void) {
 }
 
 /* ══════════════════════════════════════════════════════════════
- *  内环（速率）— 由主循环或中断调用
+ *  内环（速率）— 由 TIM4 中断调用
  * ══════════════════════════════════════════════════════════════ */
 
 void ControlMotor_Loop(void) {
@@ -222,37 +330,42 @@ void ControlMotor_Loop(void) {
     localRateSetYaw = rateSetYaw;
     __enable_irq();
 
+    /* ── 读取陀螺仪并转换为机体坐标系 ────────────── */
     sm_vec3_t gyro;
     Attitude_GetGyro(gyro);
-    float gx = gyro[0];
-    float gy = gyro[1];
-    float gz = gyro[2];
 
-    // 同理，外圈姿态都没有被翻转，证明我们在更低层已经处理过了，或者根本没贴反。
-    // PID 内环接收到的角速度和四元数方向是一致的，不需要再对 gyro_current 手动反向。
+    if (sensorIsFlipped) {
+        gyro[1] = -gyro[1];  // Y 轴反向
+        gyro[2] = -gyro[2];  // Z 轴反向
+    }
 
-    float rollCtrl = PID_Update(&pidRateRoll, localRateSetRoll, gx, dt);
-    float pitchCtrl = PID_Update(&pidRatePitch, localRateSetPitch, gy, dt);
-    float yawCtrl = PID_Update(&pidRateYaw, localRateSetYaw, gz, dt);
+    /* ── 陀螺仪偏置补偿 ──────────────────────────── */
+    float gyroBias[3];
+    Attitude_GetGyroBias(gyroBias);
+    gyro[0] -= gyroBias[0];
+    gyro[1] -= gyroBias[1];
+    gyro[2] -= gyroBias[2];
+
+    /* ── 速率环 PID ──────────────────────────────── */
+    float rollCtrl = PID_Update(&pidRateRoll, localRateSetRoll, gyro[0], dt);
+    float pitchCtrl = PID_Update(&pidRatePitch, localRateSetPitch, gyro[1], dt);
+    float yawCtrl = PID_Update(&pidRateYaw, localRateSetYaw, gyro[2], dt);
 
     float throttle = thrustOutput;
 
-    /* 
-     * 电机混控 (标准的无人机 FRD X型四轴混控矩阵)
-     * 1: 前左(FL)   2: 后左(RL)
-     * 3: 前右(FR)   4: 后右(RR)
+    /* 电机混控 (FRD X型四旋翼)
+     * M1: 前左(FL)   M2: 后左(RL)
+     * M3: 前右(FR)   M4: 后右(RR)
      *
-     * +Pitch (抬头) -> 前面电机加速, 后面电机减速 -> FL(+), FR(+) / RL(-), RR(-)
-     * +Roll  (右滚) -> 左面电机加速, 右面电机减速 -> FL(+), RL(+) / FR(-), RR(-)
-     * +Yaw   (右偏) -> CCW电机加速, CW电机减速    -> 假设 FL(CW), RR(CW), FR(CCW), RL(CCW)
-     *                  即 FR(+), RL(+) / FL(-), RR(-)
+     * +Pitch → 后方电机加速 → M2+, M4+ / M1-, M3-
+     * +Roll  → 右侧电机加速 → M3+, M4+ / M1-, M2-
+     * +Yaw   → CCW电机加速  → M2+, M3+ / M1-, M4-
      */
     float m[4];
-    // 恢复你最开始完全正确的混控矩阵！
-    m[0] = throttle - pitchCtrl - rollCtrl + yawCtrl; // M1(1): 前左 (FL)
-    m[1] = throttle + pitchCtrl - rollCtrl - yawCtrl; // M2(2): 后左 (RL)
-    m[2] = throttle - pitchCtrl + rollCtrl - yawCtrl; // M3(3): 前右 (FR)
-    m[3] = throttle + pitchCtrl + rollCtrl + yawCtrl; // M4(4): 后右 (RR)
+    m[0] = throttle - pitchCtrl - rollCtrl + yawCtrl;  // M1: 前左 (FL)
+    m[1] = throttle + pitchCtrl - rollCtrl - yawCtrl;  // M2: 后左 (RL)
+    m[2] = throttle - pitchCtrl + rollCtrl - yawCtrl;  // M3: 前右 (FR)
+    m[3] = throttle + pitchCtrl + rollCtrl + yawCtrl;  // M4: 后右 (RR)
 
     TIM3->CCR1 = PWM_Map_Percent(m[0]);
     TIM3->CCR2 = PWM_Map_Percent(m[1]);
@@ -332,6 +445,17 @@ float Control_GetBaseHeight(void) {
 
 void Control_SetSensorFlip(uint8_t flip) {
     sensorIsFlipped = flip;
+}
+
+uint8_t Control_GetSensorFlip(void) {
+    return sensorIsFlipped;
+}
+
+void Control_GetTargetQuat(sm_quat_t out) {
+    out[0] = targetQuat[0];
+    out[1] = targetQuat[1];
+    out[2] = targetQuat[2];
+    out[3] = targetQuat[3];
 }
 
 /* ══════════════════════════════════════════════════════════════

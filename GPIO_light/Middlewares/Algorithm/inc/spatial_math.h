@@ -27,14 +27,15 @@ float Spatial_Vec3Dot(const sm_vec3_t a, const sm_vec3_t b);
 void Spatial_Vec3Add(sm_vec3_t out, const sm_vec3_t a, const sm_vec3_t b);
 void Spatial_Vec3Sub(sm_vec3_t out, const sm_vec3_t a, const sm_vec3_t b);
 float Spatial_Vec3IsZero(const sm_vec3_t v);
+void Spatial_Vec3RotateByQuat(sm_vec3_t v, const sm_quat_t q);
 
 
 void Spatial_QuatFromEuler(sm_quat_t out, float yaw, float pitch, float roll);
 void Spatial_QuatNormalize(sm_quat_t q);
-void Spatial_QuatRotateVector(sm_vec3_t v, const sm_quat_t q);
 void Spatial_QuatConjugate(sm_quat_t q);
 void Spatial_QuatMultiply(sm_quat_t out, const sm_quat_t q1, const sm_quat_t q2);
 void Spatial_QuatGetEuler(float *yaw, float *pitch, float *roll, const sm_quat_t q);
+void Spatial_QuatRotate(sm_quat_t out, float yaw, float pitch, float roll);
 float Spatial_QuatAngleBetween(const sm_quat_t q1, const sm_quat_t q2);
 
 
