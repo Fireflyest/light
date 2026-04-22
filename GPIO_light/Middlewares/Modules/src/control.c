@@ -259,33 +259,42 @@ void ControlMotor_Loop(void) {
     sm_vec3_t gyro;
     Attitude_GetGyro(gyro);
 
-    /* ── 陀螺仪偏置补偿 ──────────────────────────── */
-    float gyroBias[3];
-    Attitude_GetGyroBias(gyroBias);
-    gyro[0] -= gyroBias[0];
-    gyro[1] -= gyroBias[1];
-    gyro[2] -= gyroBias[2];
+    float gx = gyro[0] * (180.0f / M_PI_F);
+    float gy = gyro[1] * (180.0f / M_PI_F);
+    float gz = gyro[2] * (180.0f / M_PI_F);
 
     /* ── 速率环 PID ──────────────────────────────── */
-    float rollCtrl = PID_Update(&pidRateRoll, localRateSetRoll, gyro[0], dt);
-    float pitchCtrl = PID_Update(&pidRatePitch, localRateSetPitch, gyro[1], dt);
-    float yawCtrl = PID_Update(&pidRateYaw, localRateSetYaw, gyro[2], dt);
+    // float PID_Update(PID_t *pid, float target, float measured, float dt)
+    float rollCtrl = PID_Update(&pidRateRoll, localRateSetRoll, gx, dt);
+    float pitchCtrl = PID_Update(&pidRatePitch, localRateSetPitch, gy, dt);
+    float yawCtrl = PID_Update(&pidRateYaw, localRateSetYaw, gz, dt);
 
     float throttle = thrustOutput;
 
     /* 电机混控 (FRD X型四旋翼)
-     * M1: 前左(FL)   M2: 后左(RL)
-     * M3: 前右(FR)   M4: 后右(RR)
+     * M2: 前左(FL)   M1: 后左(RL)
+     * M4: 前右(FR)   M3: 后右(RR)
      *
      * +Pitch → 后方电机加速 → M2+, M4+ / M1-, M3-
      * +Roll  → 右侧电机加速 → M3+, M4+ / M1-, M2-
      * +Yaw   → CCW电机加速  → M2+, M3+ / M1-, M4-
      */
     float m[4];
-    m[0] = throttle - pitchCtrl - rollCtrl + yawCtrl;  // M1: 前左 (FL)
-    m[1] = throttle + pitchCtrl - rollCtrl - yawCtrl;  // M2: 后左 (RL)
-    m[2] = throttle - pitchCtrl + rollCtrl - yawCtrl;  // M3: 前右 (FR)
-    m[3] = throttle + pitchCtrl + rollCtrl + yawCtrl;  // M4: 后右 (RR)
+    m[0] = throttle + pitchCtrl + rollCtrl + yawCtrl;  // M1: 后左 (RL, CW)
+    m[1] = throttle - pitchCtrl + rollCtrl - yawCtrl;  // M2: 前左 (FL, CCW)
+    m[2] = throttle + pitchCtrl - rollCtrl - yawCtrl;  // M3: 后右 (RR, CCW)
+    m[3] = throttle - pitchCtrl - rollCtrl + yawCtrl;  // M4: 前右 (FR, CW)
+
+    /* 只绕 X 轴：左侧和右侧反向 */
+    // float m[4];
+    // m[0] = throttle + rollCtrl;  // M0: 左侧
+    // m[1] = throttle + rollCtrl;  // M1: 左侧
+    // m[2] = throttle - rollCtrl;  // M2: 右侧
+    // m[3] = throttle - rollCtrl;  // M3: 右侧
+
+    if (throttle <= 0.0f) {
+        m[0] = m[1] = m[2] = m[3] = 0.0f;
+    }
 
     TIM3->CCR1 = PWM_Map_Percent(m[0]);
     TIM3->CCR2 = PWM_Map_Percent(m[1]);
@@ -324,15 +333,16 @@ void Control_Init(void) {
     TIM_Cmd(TIM4, ENABLE);
 
     /* 角度环 */
-    PID_Init(&pidHeight, 0.001f, 0.000001f, 0.0f, -50.0f, 50.0f, 0.02f, -50.0f, 50.0f, 1.0f);
-    PID_Init(&pidRoll, 0.0045f, 0.000001f, 0.0003f, -50.0f, 50.0f, 0.02f, -50.0f, 50.0f, 1.0f);
-    PID_Init(&pidPitch, 0.0045f, 0.000001f, 0.0003f, -50.0f, 50.0f, 0.02f, -50.0f, 50.0f, 1.0f);
-    PID_Init(&pidYaw, 0.001f, 0.000001f, 0.0f, -30.0f, 30.0f, 0.02f, -30.0f, 30.0f, 1.0f);
+    // float PID_Update(PID_t *pid, float target, float measured, float dt)
+    PID_Init(&pidHeight, 0.001f, 0.000001f, 0.0f, -80.0f, 80.0f, 0.02f, -80.0f, 80.0f, 1.0f);
+    PID_Init(&pidRoll, 1.5f, 0.000001f, 0.0003f, -80.0f, 80.0f, 0.02f, -80.0f, 80.0f, 1.0f);
+    PID_Init(&pidPitch, 1.5f, 0.000001f, 0.0003f, -80.0f, 80.0f, 0.02f, -80.0f, 80.0f, 1.0f);
+    PID_Init(&pidYaw, 0.001f, 0.000001f, 0.0f, -80.0f, 80.0f, 0.02f, -80.0f, 80.0f, 1.0f);
 
     /* 速率环 */
-    PID_Init(&pidRateRoll, 1.8f, 0.0f, 0.0f, -30.0f, 30.0f, 0.01f, -25.0f, 25.0f, 1.0f);
-    PID_Init(&pidRatePitch, 1.8f, 0.0f, 0.0f, -30.0f, 30.0f, 0.01f, -25.0f, 25.0f, 1.0f);
-    PID_Init(&pidRateYaw, 1.5f, 0.01f, 0.0f, -20.0f, 20.0f, 0.01f, -20.0f, 20.0f, 1.0f);
+    PID_Init(&pidRateRoll, 0.3f, 0.0f, 0.01f, -80.0f, 80.0f, 0.01f, -80.0f, 80.0f, 1.0f);
+    PID_Init(&pidRatePitch, 0.3f, 0.0f, 0.01f, -80.0f, 80.0f, 0.01f, -80.0f, 80.0f, 1.0f);
+    PID_Init(&pidRateYaw, 0.1f, 0.01f, 0.0f, -80.0f, 80.0f, 0.01f, -80.0f, 80.0f, 1.0f);
 }
 
 /* ══════════════════════════════════════════════════════════════

@@ -112,7 +112,6 @@ int main() {
 
 
     Control_Init();
-    Control_SetSensorFlip(1);
     UI_Logger_AddLine(&logWindow, "Control Init OK");
 
     Command_SetModeCallback(Control_SetMode);

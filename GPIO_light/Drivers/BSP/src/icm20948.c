@@ -144,9 +144,9 @@ void ICM20948_Init(void) {
     /* 12. 传感器量程 */
     ICM20948_Set_Bank(2);
     // ±2000dps: GYRO_FS_SEL=3 (bits [2:1] = 11)
-    ICM20948_Write_Reg(ICM20948_REG_GYRO_CONFIG_1, (3 << 1));
+    ICM20948_Write_Reg(ICM20948_REG_GYRO_CONFIG_1, (3 << 1) | 0x01);
     // ±16g: ACCEL_FS_SEL=3 (bits [2:1] = 11)
-    ICM20948_Write_Reg(ICM20948_REG_ACCEL_CONFIG, (3 << 1));
+    ICM20948_Write_Reg(ICM20948_REG_ACCEL_CONFIG, (3 << 1) | 0x01);
     ICM20948_Write_Reg(ICM20948_REG_ACCEL_CONFIG_2, 0x03);
     ICM20948_Set_Bank(0);
 }
