@@ -1,25 +1,41 @@
 #ifndef __BATTERY_H
 #define __BATTERY_H
 
-#include "stm32f4xx.h"
 #include "board.h"
+#include "stm32f4xx.h"
 
-#define R_TOP_OHM      100000.0f  /* 电池正极到ADC点的上侧电阻 R1 */
-#define R_BOTTOM_OHM   100000.0f  /* ADC点到地的下侧电阻 R2 */
+/* ══════════════════════════════════════════════════════════════
+ *  分压器参数 (R1 = R2 = 100kΩ)
+ *
+ *  Vbat ──[R1]──┬── ADC
+ *               │
+ *             [R2]
+ *               │
+ *           MOSFET ── GND
+ *
+ *  Vadc = Vbat × R2/(R1+R2) = Vbat × 0.5
+ *  Vbat = Vadc × 2
+ * ══════════════════════════════════════════════════════════════ */
 
-#define VREF_V         3.3f
-#define BATTERY_ADC_MAX        4095.0f
-// #define VOLTAGE_DIVIDER_RATIO  ((R_TOP_OHM + R_BOTTOM_OHM) / R_BOTTOM_OHM)
-#define VOLTAGE_DIVIDER_RATIO  2.0f/30.0f
-#define ADC_RAW_TO_MV_FACTOR  ((VREF_V * 1000.0f * VOLTAGE_DIVIDER_RATIO) / BATTERY_ADC_MAX)
+#define R_TOP_OHM 100000.0f
+#define R_BOTTOM_OHM 100000.0f
 
-#define BATTERY_FULL    4200  // 4.2V
-#define BATTERY_EMPTY   3300  // 3.3V
+#define VREF_V 3.3f
+#define BATTERY_ADC_MAX 4095.0f
+#define VOLTAGE_DIVIDER_RATIO 2.0f /* Vbat = Vadc × 2 (R1=R2=100kΩ) */
+#define ADC_RAW_TO_MV_FACTOR ((VREF_V * 1000.0f / VOLTAGE_DIVIDER_RATIO) / BATTERY_ADC_MAX)
+/* 展开: (3300 / 2) / 4095 = 0.4029 mV/LSB
+ * 4095 × 0.4029 = 1649 mV (ADC端) × 2 = 3299 mV (电池端) ≈ 3.3V ✓ */
 
-#define PWR_STATE_PREPARE   0
-#define PWR_STATE_READ      1
-#define PWR_STATE_WAIT      2
-#define PWR_STATE_DISABLE   3
+#define BATTERY_FULL 4200  /* 4.2V */
+#define BATTERY_EMPTY 3300 /* 3.3V */
+
+/* 状态机 */
+#define PWR_STATE_PREPARE 0 /* 开启 MOSFET，等待 RC 稳定 */
+#define PWR_STATE_WAIT_RC 1 /* 开启 MOSFET，等待 RC 稳定 */
+#define PWR_STATE_READ 2    /* 启动 ADC 转换 */
+#define PWR_STATE_WAIT_ADC 3    /* 等待 ADC 转换完成 */
+#define PWR_STATE_DISABLE 4 /* 关闭 MOSFET，保存结果 */
 
 extern __IO uint16_t pwr_adc_raw;
 extern __IO uint16_t pwr_state;

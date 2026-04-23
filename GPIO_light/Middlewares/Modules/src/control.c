@@ -207,6 +207,14 @@ void ControlAttitude_Loop(void) {
     Spatial_QuatMultiply(qErr, qTargetInv, curQuat);
     Spatial_QuatNormalize(qErr);
 
+    /* 最短路径保护：qErr.w < 0 表示走了长路径 */
+    if (qErr[0] < 0.0f) {
+        qErr[0] = -qErr[0];
+        qErr[1] = -qErr[1];
+        qErr[2] = -qErr[2];
+        qErr[3] = -qErr[3];
+    }
+
     float errRoll, errPitch, errYaw;
     Spatial_QuatGetEuler(&errYaw, &errPitch, &errRoll, qErr);
     errRoll *= (180.0f / M_PI_F);

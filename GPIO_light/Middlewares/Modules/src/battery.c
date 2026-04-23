@@ -3,6 +3,9 @@
 __IO uint16_t pwr_adc_raw = 0;
 __IO uint16_t pwr_state = PWR_STATE_PREPARE;
 
+static uint8_t rc_counter = 0;
+static uint8_t disable_counter = 0;
+
 static const uint16_t li_po_curve[11] = {
     4200, // 100%
     4060, // 90%
@@ -62,16 +65,27 @@ void Battery_Measure_Step(void) {
         GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
         GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
         GPIO_Init(GPIO_PWR_AUX, &GPIO_InitStructure);
-        GPIO_ResetBits(GPIO_PWR_AUX, GPIO_PWR_AUX_PIN);
-        pwr_state = PWR_STATE_READ;
+        GPIO_SetBits(GPIO_PWR_AUX, GPIO_PWR_AUX_PIN);
+        pwr_state = PWR_STATE_WAIT_RC;
+    } else if (pwr_state == PWR_STATE_WAIT_RC) {
+        rc_counter++;
+        if (rc_counter >= 8) {
+            rc_counter = 0;
+            pwr_state = PWR_STATE_READ;
+        }
     } else if (pwr_state == PWR_STATE_READ) {
         ADC_RegularChannelConfig(ADC1, ADC_Channel_10, 1, ADC_SampleTime_480Cycles); // PC0 is ADC Channel 10
         ADC_SoftwareStartConv(ADC1);
-        pwr_state = PWR_STATE_WAIT;
-    } else if (pwr_state == PWR_STATE_WAIT) {
+        pwr_state = PWR_STATE_WAIT_ADC;
+    } else if (pwr_state == PWR_STATE_WAIT_ADC) {
         // 等待ADC转换完成，结果将在中断服务程序中处理
     } else if (pwr_state == PWR_STATE_DISABLE) {
-        // pwr_state = PWR_STATE_PREPARE;
+        GPIO_ResetBits(GPIO_PWR_AUX, GPIO_PWR_AUX_PIN);
+        disable_counter++;
+        if (disable_counter >= 1000) {
+            disable_counter = 0;
+            pwr_state = PWR_STATE_PREPARE;
+        }
     }
 }
 

@@ -154,7 +154,7 @@ int main() {
         ICM20948_Read(imu_rx_buf, mag_rx_buf);
         BMP280_Read(&altitude_rx, &temperature_rx);
 
-        Battery_Measure_Step();
+        // Battery_Measure_Step();
 
         /* 发送数据包 */
         {
