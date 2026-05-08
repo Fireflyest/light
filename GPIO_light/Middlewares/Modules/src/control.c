@@ -138,6 +138,11 @@ void ControlAttitude_Loop(void) {
     sm_quat_t curQuat;
     Attitude_GetQuat(curQuat);
 
+    if (!isfinite(curQuat[0]) || !isfinite(curQuat[1]) ||
+        !isfinite(curQuat[2]) || !isfinite(curQuat[3])) {
+        return;
+    }
+
     /* ── 解析当前欧拉角（机体坐标系） ────────────── */
     float curRoll, curPitch, curYaw;
     Spatial_QuatGetEuler(&curYaw, &curPitch, &curRoll, curQuat);

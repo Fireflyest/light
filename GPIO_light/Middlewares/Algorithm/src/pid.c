@@ -24,6 +24,9 @@ void PID_Init(PID_t* pid, float kp, float ki, float kd,
 
 
 float PID_Update(PID_t* pid, float target, float measured, float dt) {
+    if (!isfinite(target) || !isfinite(measured) || dt <= 0.0f) {
+        return 0.0f;
+    }
     float err = target - measured;
 
     // 首次调用初始化，避免 D 项/初始误差突变
