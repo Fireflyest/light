@@ -48,7 +48,7 @@
 
 PID_t pidRoll, pidPitch, pidYaw, pidHeight;
 PID_t pidRateRoll, pidRatePitch, pidRateYaw;
-float baseThrottle = 50.0f;
+float baseThrottle = 30.0f;
 
 /* 临界区保护的共享变量 */
 __IO float rateSetRoll, rateSetPitch, rateSetYaw;
@@ -69,6 +69,8 @@ static float targetYaw = 0.0f;
 static float targetHeight = 0.0f;
 static float moveForward = 0.0f;
 static float moveRight = 0.0f;
+static float rampedHeight = 0.0f;
+static uint8_t ramp_init = 0;
 
 /* 目标四元数（机体坐标系，Hamilton [w,x,y,z]）*/
 static sm_quat_t targetQuat = {1.0f, 0.0f, 0.0f, 0.0f};
@@ -171,7 +173,22 @@ void ControlAttitude_Loop(void) {
 
     /* ── 高度环 ──────────────────────────────────── */
     if (curMode >= CONTROL_MODE_ALTITUDE) {
-        thrustOutput = baseThrottle + PID_Update(&pidHeight, targetHeight, curHeight, dt);
+        if (!ramp_init) {
+            rampedHeight = baseHeight;
+            ramp_init = 1;
+        }
+
+        float heightError = targetHeight - rampedHeight;
+        float rampSpeed = 0.3f;  // m/s，慢慢升
+        if (heightError > rampSpeed * dt) {
+            rampedHeight += rampSpeed * dt;
+        } else if (heightError < -rampSpeed * dt) {
+            rampedHeight -= rampSpeed * dt;
+        } else {
+            rampedHeight = targetHeight;
+        }
+
+        thrustOutput = baseThrottle + PID_Update(&pidHeight, rampedHeight, curHeight, dt);
         thrustOutput = fmaxf(0.0f, fminf(thrustOutput, 100.0f));
     }
 
@@ -305,10 +322,6 @@ void ControlMotor_Loop(void) {
     // m[2] = throttle - rollCtrl;  // M2: 右侧
     // m[3] = throttle - rollCtrl;  // M3: 右侧
 
-    if (throttle <= 0.0f) {
-        m[0] = m[1] = m[2] = m[3] = 0.0f;
-    }
-
     TIM3->CCR1 = PWM_Map_Percent(m[0]);
     TIM3->CCR2 = PWM_Map_Percent(m[1]);
     TIM3->CCR3 = PWM_Map_Percent(m[2]);
@@ -347,15 +360,15 @@ void Control_Init(void) {
 
     /* 角度环 */
     // float PID_Update(PID_t *pid, float target, float measured, float dt)
-    PID_Init(&pidHeight, 0.001f, 0.000001f, 0.0f, -80.0f, 80.0f, 0.02f, -80.0f, 80.0f, 1.0f);
-    PID_Init(&pidRoll, 1.5f, 0.000001f, 0.0003f, -80.0f, 80.0f, 0.02f, -80.0f, 80.0f, 1.0f);
-    PID_Init(&pidPitch, 1.5f, 0.000001f, 0.0003f, -80.0f, 80.0f, 0.02f, -80.0f, 80.0f, 1.0f);
-    PID_Init(&pidYaw, 0.001f, 0.000001f, 0.0f, -80.0f, 80.0f, 0.02f, -80.0f, 80.0f, 1.0f);
+    PID_Init(&pidHeight, 10.0f, 1.0f, 6.0f, -15.0f, 15.0f, 0.02f, -40.0f, 40.0f, 1.0f);
+    PID_Init(&pidRoll, 4.0f, 0.01f, 0.0f, -20.0f, 20.0f, 0.02f, -100.0f, 100.0f, 1.0f);
+    PID_Init(&pidPitch, 4.0f, 0.01f, 0.0f, -20.0f, 20.0f, 0.02f, -100.0f, 100.0f, 1.0f);
+    PID_Init(&pidYaw, 2.0f, 0.01f, 0.0f, -20.0f, 20.0f, 0.02f, -100.0f, 100.0f, 1.0f);
 
     /* 速率环 */
-    PID_Init(&pidRateRoll, 0.3f, 0.0f, 0.01f, -80.0f, 80.0f, 0.01f, -80.0f, 80.0f, 1.0f);
-    PID_Init(&pidRatePitch, 0.3f, 0.0f, 0.01f, -80.0f, 80.0f, 0.01f, -80.0f, 80.0f, 1.0f);
-    PID_Init(&pidRateYaw, 0.1f, 0.01f, 0.0f, -80.0f, 80.0f, 0.01f, -80.0f, 80.0f, 1.0f);
+    PID_Init(&pidRateRoll, 0.4f, 0.3f, 0.008f, -20.0f, 20.0f, 0.01f, -100.0f, 100.0f, 1.0f);
+    PID_Init(&pidRatePitch, 0.4f, 0.3f, 0.008f, -20.0f, 20.0f, 0.01f, -100.0f, 100.0f, 1.0f);
+    PID_Init(&pidRateYaw, 0.1f, 0.05f, 0.0f, -20.0f, 20.0f, 0.01f, -100.0f, 100.0f, 1.0f);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -421,6 +434,7 @@ uint8_t Control_IsArmed(void) {
 
 int8_t Control_Disarm(void) {
     isArmed = 0;
+    ramp_init = 0;
 
     StopMotors();
     ResetAllPIDs();
@@ -458,6 +472,7 @@ int8_t Control_Takeoff(float relative_height) {
     targetPitch = 0.0f;
     moveForward = 0.0f;
     moveRight = 0.0f;
+    ramp_init = 0;
 
     if (curMode < CONTROL_MODE_ALTITUDE) {
         Control_SetMode(CONTROL_MODE_ALTITUDE);

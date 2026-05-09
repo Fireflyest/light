@@ -202,6 +202,34 @@ int main() {
                 
                 BLE_WriteData(att_buf, 32);
             }
+
+            // GPS 包 (类型 0x03)，每 10 帧发送一次
+            if (telemetry_tick % 10 == 0) {
+                uint8_t gps_buf[32] = {0};
+                gps_buf[0] = 0xAA;
+                gps_buf[1] = 0x03;
+
+                // 纬度 (GPS 暂未接入，填 0)
+                double latitude = 0.0;
+                memcpy(&gps_buf[2], &latitude, 8);
+
+                // 经度 (GPS 暂未接入，填 0)
+                double longitude = 0.0;
+                memcpy(&gps_buf[10], &longitude, 8);
+
+                // 高度 (气压计)
+                float altitude;
+                Attitude_GetAltitude(&altitude);
+                memcpy(&gps_buf[18], &altitude, 4);
+
+                // 水平速度 (GPS 暂未接入，填 0)
+                float velocity = 0.0f;
+                memcpy(&gps_buf[22], &velocity, 4);
+
+                // Padding 已由初始化置零
+
+                BLE_WriteData(gps_buf, 32);
+            }
         }
 
         if (Key_PressConsume()) {
